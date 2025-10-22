@@ -51,7 +51,8 @@ async function pollJobStatus(jobId: string, endpoint: string, apiKey: string): P
   let attempts = 0;
 
   while (attempts < maxAttempts) {
-    const statusUrl = `${endpoint.replace('/jobs', '')}/${jobId}`;
+    const [baseUrl, queryParams] = endpoint.split('?');
+    const statusUrl = `${baseUrl.replace('/jobs', '')}/${jobId}${queryParams ? '?' + queryParams : ''}`;
     
     const response = await fetch(statusUrl, {
       headers: {
