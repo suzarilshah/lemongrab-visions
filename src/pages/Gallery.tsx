@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Trash2, Download, Sparkles } from "lucide-react";
+import { ArrowLeft, Trash2, Download, Sparkles, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { listVideosFromAppwrite, deleteVideoFromAppwrite, VideoMetadata } from "@/lib/appwriteStorage";
@@ -162,6 +162,18 @@ export default function Gallery() {
                       <Badge variant={video.soraVersion === "sora-2" ? "default" : "secondary"} className="text-xs">
                         {video.soraVersion === "sora-2" ? "Sora 2" : "Sora 1"}
                       </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(video.id);
+                          toast.success("Video ID copied to clipboard");
+                        }}
+                        className="text-xs h-6 px-2"
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        ID: {video.id.slice(0, 8)}...
+                      </Button>
                     </div>
                     <p className="text-sm line-clamp-2">{video.prompt}</p>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">

@@ -8,6 +8,9 @@ interface VideoGenerationParams {
   apiKey: string;
   deployment: string;
   onProgress?: (status: string) => void;
+  audio?: boolean;
+  inputReference?: File;
+  remixVideoId?: string;
 }
 
 interface VideoJob {
@@ -27,13 +30,16 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
     endpoint, 
     apiKey, 
     deployment,
-    onProgress
+    onProgress,
+    audio,
+    inputReference,
+    remixVideoId
   } = params;
 
   onProgress?.("Creating video generation job...");
 
   // Create video generation job
-  const requestBody = {
+  const requestBody: any = {
     model: deployment,
     prompt,
     height,
@@ -41,6 +47,21 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
     n_seconds: duration.toString(),
     n_variants: variants,
   };
+
+  // Add audio parameter only if it's explicitly true (for Sora 2)
+  if (audio === true) {
+    requestBody.audio = true;
+  }
+
+  // Add input_reference if provided (for image-to-video)
+  if (inputReference) {
+    requestBody.input_reference = inputReference;
+  }
+
+  // Add remix_video_id if provided (for video-to-video)
+  if (remixVideoId) {
+    requestBody.remix_video_id = remixVideoId;
+  }
 
   try {
     onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'POST', url: endpoint, body: requestBody, time: Date.now() })}`);

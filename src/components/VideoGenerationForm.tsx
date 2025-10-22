@@ -17,6 +17,9 @@ interface VideoGenerationFormProps {
     width: string;
     duration: number;
     variants: string;
+    audio?: boolean;
+    inputReference?: File;
+    remixVideoId?: string;
   }) => Promise<void>;
   isGenerating: boolean;
   progress: number;
@@ -89,11 +92,15 @@ export default function VideoGenerationForm({
       width,
       duration: parseInt(duration),
       variants,
+      audio: generateAudio,
+      inputReference: imageFile || undefined,
+      remixVideoId: remixVideoId || undefined,
     });
     setPrompt("");
     setImageFile(null);
     setVideoFile(null);
     setRemixVideoId("");
+    setGenerateAudio(false);
   };
 
   return (

@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Trash2, Sparkles, Download, Copy } from "lucide-react";
 import { VideoMetadata } from "@/lib/appwriteStorage";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 
 interface VideoGalleryProps {
   videos: VideoMetadata[];
@@ -111,7 +112,26 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
                   className="w-full aspect-video bg-black"
                 />
                 <div className="p-4 space-y-2">
-                  <p className="text-sm line-clamp-2">{video.prompt}</p>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm line-clamp-2 flex-1">{video.prompt}</p>
+                    <Badge variant="outline" className="text-xs shrink-0">
+                      {video.soraVersion || 'sora-1'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(video.id);
+                        toast.success("Video ID copied to clipboard");
+                      }}
+                      className="text-xs h-7 px-2"
+                    >
+                      <Copy className="h-3 w-3 mr-1" />
+                      ID: {video.id.slice(0, 8)}...
+                    </Button>
+                  </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{new Date(video.timestamp).toLocaleDateString()}</span>
                     <span>{video.width}x{video.height} • {video.duration}s</span>

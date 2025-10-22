@@ -85,6 +85,9 @@ export default function Dashboard() {
     width: string;
     duration: number;
     variants: string;
+    audio?: boolean;
+    inputReference?: File;
+    remixVideoId?: string;
   }) => {
     if (!params.prompt.trim()) {
       toast.error("Please enter a prompt");
@@ -113,6 +116,9 @@ export default function Dashboard() {
         endpoint: settings.endpoint,
         apiKey: settings.apiKey,
         deployment: settings.deployment,
+        audio: params.audio,
+        inputReference: params.inputReference,
+        remixVideoId: params.remixVideoId,
           onProgress: (status: string) => {
             setProgressMessage(status);
 
