@@ -135,27 +135,46 @@ async function pollJobStatus(
     // Azure uses "succeeded" not "completed"
     if (job.status === 'succeeded') {
       onProgress?.("Video generated! Downloading...");
-      
-      // Fetch the actual video from the content endpoint
+
+      // Determine generation id then download from /video/generations/{generation_id}/content/video
+      const generations = Array.isArray(job.generations) ? job.generations : [];
+      const genId = generations[0]?.id;
+      if (!genId) {
+        try { onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'no_generation_id', jobId, time: Date.now(), job })}`); } catch {}
+        throw new Error('Generation ID missing in job response');
+      }
+
       let videoUrl = '';
       if (statusUrlOverride) {
         const parts = statusUrl.split('?');
-        videoUrl = `${parts[0]}/content/video${parts[1] ? '?' + parts[1] : ''}`;
+        const base = parts[0].replace(/\/jobs\/[^/]+$/, ''); // -> .../video/generations
+        videoUrl = `${base}/${genId}/content/video${parts[1] ? '?' + parts[1] : ''}`;
       } else {
-        videoUrl = `${statusBase}/${jobId}/content/video${queryParams ? '?' + queryParams : ''}`;
+        const [baseUrl, queryParams] = endpoint.split('?');
+        const root = baseUrl.replace(/\/(jobs|tasks)$/, ''); // -> .../video/generations
+        videoUrl = `${root}/${genId}/content/video${queryParams ? '?' + queryParams : ''}`;
       }
-      console.info('[VideoGen] Computed video URL:', videoUrl, 'from statusBase:', statusBase);
-      onProgress?.(`download_url:${videoUrl}`);
-      console.info('[VideoGen] Video content URL:', videoUrl);
-      try { onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'GET', url: videoUrl, time: Date.now() })}`); } catch {}
-      const videoResponse = await fetch(videoUrl, {
-        headers: {
-          'api-key': apiKey,
-        },
-      });
-      try { onProgress?.(`log:${JSON.stringify({ type: 'response', method: 'GET', url: videoUrl, status: videoResponse.status, time: Date.now() })}`); } catch {}
 
-      if (!videoResponse.ok) {
+      console.info('[VideoGen] Computed video URL:', videoUrl);
+      onProgress?.(`download_url:${videoUrl}`);
+      try { onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'GET', url: videoUrl, time: Date.now() })}`); } catch {}
+
+      // Retry a few times if content isn't immediately available after success
+      let videoResponse: Response | null = null;
+      for (let i = 0; i < 5; i++) {
+        const resp = await fetch(videoUrl, {
+          headers: { 'api-key': apiKey },
+        });
+        videoResponse = resp;
+        try { onProgress?.(`log:${JSON.stringify({ type: 'response', method: 'GET', url: videoUrl, status: resp.status, time: Date.now(), attempt: i + 1 })}`); } catch {}
+        if (resp.status === 404) {
+          await new Promise((r) => setTimeout(r, 2000));
+          continue;
+        }
+        break;
+      }
+
+      if (!videoResponse || !videoResponse.ok) {
         throw new Error('Failed to download generated video');
       }
 
