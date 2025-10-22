@@ -147,9 +147,9 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background dark:gradient-animate">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-primary/20 glass">
+      <header className="border-b border-border bg-card/50 backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -195,7 +195,7 @@ export default function Dashboard() {
           />
 
           {/* Video Gallery */}
-          <VideoGallery videos={videos} onDelete={handleDelete} />
+          <VideoGallery videos={videos} onDelete={handleDelete} directVideoUrl={directVideoUrl} />
         </div>
       </main>
     </div>

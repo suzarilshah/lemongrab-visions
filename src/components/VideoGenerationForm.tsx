@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Play } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import PriceEstimator from "@/components/PriceEstimator";
 
 interface VideoGenerationFormProps {
   onGenerate: (params: {
@@ -64,55 +65,64 @@ export default function VideoGenerationForm({
           />
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="width">Width (px)</Label>
-            <Input
-              id="width"
-              type="number"
-              value={width}
-              onChange={(e) => setWidth(e.target.value)}
-              className="glass border-primary/20"
-              disabled={isGenerating}
-            />
+        <div className="grid gap-4 md:grid-cols-[1fr_300px]">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="width">Width (px)</Label>
+              <Input
+                id="width"
+                type="number"
+                value={width}
+                onChange={(e) => setWidth(e.target.value)}
+                className="glass border-primary/20"
+                disabled={isGenerating}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="height">Height (px)</Label>
+              <Input
+                id="height"
+                type="number"
+                value={height}
+                onChange={(e) => setHeight(e.target.value)}
+                className="glass border-primary/20"
+                disabled={isGenerating}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="duration">Duration (s)</Label>
+              <Input
+                id="duration"
+                type="number"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+                min="1"
+                max="20"
+                className="glass border-primary/20"
+                disabled={isGenerating}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="variants">Variants</Label>
+              <Input
+                id="variants"
+                type="number"
+                value={variants}
+                onChange={(e) => setVariants(e.target.value)}
+                min="1"
+                max="4"
+                className="glass border-primary/20"
+                disabled={isGenerating}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="height">Height (px)</Label>
-            <Input
-              id="height"
-              type="number"
-              value={height}
-              onChange={(e) => setHeight(e.target.value)}
-              className="glass border-primary/20"
-              disabled={isGenerating}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="duration">Duration (s)</Label>
-            <Input
-              id="duration"
-              type="number"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-              min="1"
-              max="20"
-              className="glass border-primary/20"
-              disabled={isGenerating}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="variants">Variants</Label>
-            <Input
-              id="variants"
-              type="number"
-              value={variants}
-              onChange={(e) => setVariants(e.target.value)}
-              min="1"
-              max="4"
-              className="glass border-primary/20"
-              disabled={isGenerating}
-            />
-          </div>
+          
+          <PriceEstimator
+            width={width}
+            height={height}
+            duration={duration}
+            variants={variants}
+          />
         </div>
 
         {isGenerating && (
