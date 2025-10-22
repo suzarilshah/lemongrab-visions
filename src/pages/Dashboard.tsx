@@ -24,6 +24,7 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
+  const [directVideoUrl, setDirectVideoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -90,9 +91,9 @@ export default function Dashboard() {
           onProgress: (status: string) => {
             setProgressMessage(status);
 
-            // If backend surfaces a direct link, show it immediately
             if (status.startsWith("download_url:")) {
               const url = status.replace("download_url:", "").trim();
+              setDirectVideoUrl(url);
               console.info("[VideoGen] Direct download URL:", url);
               toast.message("Video ready", {
                 description: "Open the direct download link",
@@ -146,7 +147,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen gradient-animate">
+    <div className="min-h-screen bg-background dark:gradient-animate">
       {/* Header */}
       <header className="border-b border-primary/20 glass">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">

@@ -58,17 +58,20 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   const jobId = job.id;
 
   console.info('[VideoGen] Job created with id:', jobId, 'endpoint:', endpoint);
+  // Prefer Operation-Location header if provided by Azure for polling
+  const opLoc = response.headers.get('operation-location') || response.headers.get('Operation-Location');
   onProgress?.("Job created. Waiting for processing...");
 
   // Poll for completion and get video
-  return pollJobStatus(jobId, endpoint, apiKey, onProgress);
+  return pollJobStatus(jobId, endpoint, apiKey, onProgress, opLoc || undefined);
 }
 
 async function pollJobStatus(
   jobId: string, 
   endpoint: string, 
   apiKey: string,
-  onProgress?: (status: string) => void
+  onProgress?: (status: string) => void,
+  statusUrlOverride?: string
 ): Promise<Blob> {
   const maxAttempts = 180; // 15 minutes max (progressive backoff)
   let attempts = 0;
@@ -82,9 +85,10 @@ async function pollJobStatus(
 
     const [baseUrl, queryParams] = endpoint.split('?');
     // Azure status endpoint is under /video/generations/tasks/{id}
-    const root = baseUrl.replace(/\/jobs$/, '').replace(/\/tasks$/, '');
+    const root = baseUrl.replace(/\/(jobs|tasks)$/, '');
     const statusBase = root.endsWith('/video/generations') ? `${root}/tasks` : `${root}/tasks`;
-    const statusUrl = `${statusBase}/${jobId}${queryParams ? '?' + queryParams : ''}`;
+    const computedStatusUrl = `${statusBase}/${jobId}${queryParams ? '?' + queryParams : ''}`;
+    const statusUrl = statusUrlOverride || computedStatusUrl;
     console.info('[VideoGen] Polling status URL:', statusUrl, 'jobId:', jobId);
     const response = await fetch(statusUrl, {
       headers: {
@@ -114,7 +118,13 @@ async function pollJobStatus(
       onProgress?.("Video generated! Downloading...");
       
       // Fetch the actual video from the content endpoint
-      const videoUrl = `${statusBase}/${jobId}/content/video${queryParams ? '?' + queryParams : ''}`;
+      let videoUrl = '';
+      if (statusUrlOverride) {
+        const parts = statusUrl.split('?');
+        videoUrl = `${parts[0]}/content/video${parts[1] ? '?' + parts[1] : ''}`;
+      } else {
+        videoUrl = `${statusBase}/${jobId}/content/video${queryParams ? '?' + queryParams : ''}`;
+      }
       onProgress?.(`download_url:${videoUrl}`);
       console.info('[VideoGen] Video content URL:', videoUrl);
       const videoResponse = await fetch(videoUrl, {
