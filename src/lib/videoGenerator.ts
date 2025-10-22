@@ -51,20 +51,33 @@ async function pollJobStatus(jobId: string, endpoint: string, apiKey: string): P
   let attempts = 0;
 
   while (attempts < maxAttempts) {
+    // Give Azure a moment to register the job before first status check
+    if (attempts === 0) {
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+
     const [baseUrl, queryParams] = endpoint.split('?');
     const statusUrl = `${baseUrl.replace('/jobs', '')}/${jobId}${queryParams ? '?' + queryParams : ''}`;
-    
+
     const response = await fetch(statusUrl, {
       headers: {
         'api-key': apiKey,
       },
     });
 
-    if (!response.ok) {
-      throw new Error('Failed to check job status');
+    // Azure can return 404 for a few seconds until the job is ready; keep polling
+    if (response.status === 404) {
+      await new Promise((r) => setTimeout(r, 5000));
+      attempts++;
+      continue;
     }
 
-    const job: VideoJob = await response.json();
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`Failed to check job status: ${text || response.status}`);
+    }
+
+    const job: any = await response.json();
 
     if (job.status === 'completed' && job.videoUrl) {
       return job.videoUrl;
