@@ -16,6 +16,8 @@ import { useTheme } from "@/components/ThemeProvider";
 import VideoGenerationForm from "@/components/VideoGenerationForm";
 import VideoGallery from "@/components/VideoGallery";
 import ApiConsole from "@/components/ApiConsole";
+import SoraLimitationsDialog from "@/components/SoraLimitationsDialog";
+import Sora2FeaturesDialog from "@/components/Sora2FeaturesDialog";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -27,11 +29,21 @@ export default function Dashboard() {
   const [progressMessage, setProgressMessage] = useState("");
   const [directVideoUrl, setDirectVideoUrl] = useState<string | null>(null);
   const [apiLogs, setApiLogs] = useState<any[]>([]);
+  const [soraVersion, setSoraVersion] = useState<string>("sora-1");
 
   useEffect(() => {
     checkAuth();
     loadVideos();
+    loadSoraVersion();
   }, []);
+
+  const loadSoraVersion = () => {
+    const stored = localStorage.getItem("lemongrab_settings");
+    if (stored) {
+      const settings = JSON.parse(stored);
+      setSoraVersion(settings.soraVersion || "sora-1");
+    }
+  };
 
   const checkAuth = async () => {
     try {
@@ -194,6 +206,11 @@ export default function Dashboard() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                 LemonGrab
               </h1>
+              {soraVersion === "sora-1" ? (
+                <SoraLimitationsDialog />
+              ) : (
+                <Sora2FeaturesDialog />
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Button
