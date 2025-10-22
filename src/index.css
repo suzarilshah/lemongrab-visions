@@ -136,5 +136,6 @@ All colors MUST be HSL.
     -webkit-mask-composite: xor;
     mask-composite: exclude;
     opacity: 0.5;
+    pointer-events: none;
   }
 }
