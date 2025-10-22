@@ -152,7 +152,8 @@ export default function Dashboard() {
         params.prompt,
         params.height,
         params.width,
-        params.duration.toString()
+        params.duration.toString(),
+        soraVersion
       );
 
       saveVideoMetadata(metadata);

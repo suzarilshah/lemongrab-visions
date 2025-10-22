@@ -6,28 +6,29 @@ interface PriceEstimatorProps {
   height: string;
   duration: string;
   variants: string;
+  soraVersion?: string;
 }
 
-export default function PriceEstimator({ width, height, duration, variants }: PriceEstimatorProps) {
-  // Azure Sora pricing: ~$0.05 per second per variant at 720p, scales with resolution
+export default function PriceEstimator({ width, height, duration, variants, soraVersion = "sora-1" }: PriceEstimatorProps) {
   const calculatePrice = () => {
     const w = parseInt(width) || 1280;
     const h = parseInt(height) || 720;
     const d = parseInt(duration) || 12;
     const v = parseInt(variants) || 1;
     
-    // Base price per second (720p baseline)
-    const basePrice = 0.05;
-    
-    // Resolution multiplier (relative to 720p = 921,600 pixels)
-    const basePixels = 1280 * 720;
-    const currentPixels = w * h;
-    const resolutionMultiplier = currentPixels / basePixels;
-    
-    // Calculate total cost
-    const totalCost = basePrice * d * v * resolutionMultiplier;
-    
-    return totalCost.toFixed(2);
+    if (soraVersion === "sora-2") {
+      // Sora 2 pricing: $0.10 per second (flat rate for 720x1280 and 1280x720)
+      const totalCost = 0.10 * d * v;
+      return totalCost.toFixed(2);
+    } else {
+      // Sora 1 pricing: ~$0.05 per second per variant at 720p, scales with resolution
+      const basePrice = 0.05;
+      const basePixels = 1280 * 720;
+      const currentPixels = w * h;
+      const resolutionMultiplier = currentPixels / basePixels;
+      const totalCost = basePrice * d * v * resolutionMultiplier;
+      return totalCost.toFixed(2);
+    }
   };
 
   const price = calculatePrice();
@@ -43,7 +44,7 @@ export default function PriceEstimator({ width, height, duration, variants }: Pr
       <CardContent>
         <div className="text-3xl font-bold text-primary">${price}</div>
         <p className="text-xs text-muted-foreground mt-1">
-          Based on Azure OpenAI pricing
+          Based on Azure OpenAI {soraVersion === "sora-2" ? "Sora 2" : "Sora 1"} pricing
         </p>
         <div className="mt-3 space-y-1 text-xs text-muted-foreground">
           <div className="flex justify-between">

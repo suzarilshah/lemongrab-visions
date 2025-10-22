@@ -11,6 +11,7 @@ export interface VideoMetadata {
   height: string;
   width: string;
   duration: string;
+  soraVersion?: string;
 }
 
 export async function uploadVideoToAppwrite(
@@ -18,7 +19,8 @@ export async function uploadVideoToAppwrite(
   prompt: string,
   height: string,
   width: string,
-  duration: string
+  duration: string,
+  soraVersion?: string
 ): Promise<VideoMetadata> {
   try {
     console.log("[Appwrite] Starting video upload...", {
@@ -46,6 +48,7 @@ export async function uploadVideoToAppwrite(
       height,
       width,
       duration,
+      soraVersion: soraVersion || "sora-1",
     };
 
     return metadata;
@@ -90,6 +93,7 @@ export async function listVideosFromAppwrite(): Promise<VideoMetadata[]> {
         height: "720",
         width: "1280",
         duration: "12",
+        soraVersion: "sora-1",
       };
     });
   } catch (error: any) {

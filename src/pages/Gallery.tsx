@@ -3,6 +3,7 @@ import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ArrowLeft, Trash2, Download, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
 import { listVideosFromAppwrite, deleteVideoFromAppwrite, VideoMetadata } from "@/lib/appwriteStorage";
 import { toast } from "sonner";
@@ -157,6 +158,11 @@ export default function Gallery() {
                     </div>
                   </div>
                   <div className="p-4 space-y-2">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant={video.soraVersion === "sora-2" ? "default" : "secondary"} className="text-xs">
+                        {video.soraVersion === "sora-2" ? "Sora 2" : "Sora 1"}
+                      </Badge>
+                    </div>
                     <p className="text-sm line-clamp-2">{video.prompt}</p>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <span>{new Date(video.timestamp).toLocaleDateString()}</span>

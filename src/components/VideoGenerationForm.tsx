@@ -80,6 +80,7 @@ export default function VideoGenerationForm({
   };
 
   const [width, height] = resolution.split("x");
+  const [remixVideoId, setRemixVideoId] = useState("");
 
   const handleSubmit = async () => {
     await onGenerate({
@@ -90,6 +91,9 @@ export default function VideoGenerationForm({
       variants,
     });
     setPrompt("");
+    setImageFile(null);
+    setVideoFile(null);
+    setRemixVideoId("");
   };
 
   return (
@@ -136,27 +140,25 @@ export default function VideoGenerationForm({
               <Upload className="h-4 w-4 text-muted-foreground" />
             </div>
             <p className="text-xs text-muted-foreground">
-              Supported formats: JPEG, PNG, WebP
+              Accepted MIME types: image/jpeg, image/png, image/webp. Image must match selected resolution exactly.
             </p>
           </div>
         )}
 
         {soraVersion === "sora-2" && mode === "video-to-video" && (
           <div className="space-y-2">
-            <Label htmlFor="videoUpload">Upload Reference Video</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                id="videoUpload"
-                type="file"
-                accept="video/*"
-                onChange={(e) => setVideoFile(e.target.files?.[0] || null)}
-                className="glass border-primary/20"
-                disabled={isGenerating}
-              />
-              <Upload className="h-4 w-4 text-muted-foreground" />
-            </div>
+            <Label htmlFor="remixVideoId">Remix Video ID</Label>
+            <Input
+              id="remixVideoId"
+              type="text"
+              placeholder="e.g., video_..."
+              value={remixVideoId}
+              onChange={(e) => setRemixVideoId(e.target.value)}
+              className="glass border-primary/20"
+              disabled={isGenerating}
+            />
             <p className="text-xs text-muted-foreground">
-              Upload a previously generated video to remix
+              Enter the ID of a previously completed video (e.g., video_...) to reuse structure, motion, and framing
             </p>
           </div>
         )}
@@ -257,6 +259,7 @@ export default function VideoGenerationForm({
             height={height}
             duration={duration}
             variants={variants}
+            soraVersion={soraVersion}
           />
         </div>
 
