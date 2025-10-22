@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Sparkles, Settings, LogOut, Moon, Sun, Images } from "lucide-react";
+import { Settings, LogOut, Moon, Sun, Images } from "lucide-react";
+import logo from "@/assets/logo.svg";
 import { generateVideo } from "@/lib/videoGenerator";
 import { 
   uploadVideoToAppwrite, 
@@ -207,9 +208,7 @@ export default function Dashboard() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
-                <Sparkles className="h-5 w-5 text-primary-foreground" />
-              </div>
+              <img src={logo} alt="LemonGrab Logo" className="h-10 w-10" />
               <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
                 LemonGrab
               </h1>

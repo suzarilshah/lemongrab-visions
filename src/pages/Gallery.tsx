@@ -2,8 +2,9 @@ import { useState, useEffect } from "react";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowLeft, Trash2, Download, Sparkles, Copy } from "lucide-react";
+import { ArrowLeft, Trash2, Download, Copy } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import logo from "@/assets/logo.svg";
 import { useNavigate } from "react-router-dom";
 import { listVideosFromAppwrite, deleteVideoFromAppwrite, VideoMetadata } from "@/lib/appwriteStorage";
 import { toast } from "sonner";
@@ -117,7 +118,7 @@ export default function Gallery() {
         ) : videos.length === 0 ? (
           <Card className="glass border-primary/20">
             <CardContent className="py-12 text-center">
-              <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <img src={logo} alt="LemonGrab Logo" className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-muted-foreground">No videos saved yet. Generate your first one!</p>
               <Button
                 className="mt-4"

@@ -6,8 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Sparkles } from "lucide-react";
 import CorsSetupAlert from "@/components/CorsSetupAlert";
+import logo from "@/assets/logo.svg";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -78,9 +78,7 @@ export default function Login() {
         <Card className="glass glow border-primary/20">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
-              <Sparkles className="h-8 w-8 text-primary-foreground" />
-            </div>
+            <img src={logo} alt="LemonGrab Logo" className="h-16 w-16" />
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
             Sign In
