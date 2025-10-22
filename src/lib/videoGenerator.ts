@@ -97,9 +97,9 @@ async function pollJobStatus(
     }
 
     const [baseUrl, queryParams] = endpoint.split('?');
-    // Azure status endpoint is under /video/generations/tasks/{id}
+    // Azure status endpoint: use /jobs/{id} when endpoint ends with /jobs
     const root = baseUrl.replace(/\/(jobs|tasks)$/, '');
-    const statusBase = root.endsWith('/video/generations') ? `${root}/tasks` : `${root}/tasks`;
+    const statusBase = `${root}/jobs`;
     const computedStatusUrl = `${statusBase}/${jobId}${queryParams ? '?' + queryParams : ''}`;
     const statusUrl = statusUrlOverride || computedStatusUrl;
     console.info('[VideoGen] Polling status URL:', statusUrl, 'jobId:', jobId);
@@ -144,6 +144,7 @@ async function pollJobStatus(
       } else {
         videoUrl = `${statusBase}/${jobId}/content/video${queryParams ? '?' + queryParams : ''}`;
       }
+      console.info('[VideoGen] Computed video URL:', videoUrl, 'from statusBase:', statusBase);
       onProgress?.(`download_url:${videoUrl}`);
       console.info('[VideoGen] Video content URL:', videoUrl);
       try { onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'GET', url: videoUrl, time: Date.now() })}`); } catch {}
