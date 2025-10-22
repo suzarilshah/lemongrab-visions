@@ -57,6 +57,7 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   const job = await response.json();
   const jobId = job.id;
 
+  console.info('[VideoGen] Job created with id:', jobId, 'endpoint:', endpoint);
   onProgress?.("Job created. Waiting for processing...");
 
   // Poll for completion and get video
@@ -69,8 +70,9 @@ async function pollJobStatus(
   apiKey: string,
   onProgress?: (status: string) => void
 ): Promise<Blob> {
-  const maxAttempts = 60; // 5 minutes max (5s intervals)
+  const maxAttempts = 180; // 15 minutes max (progressive backoff)
   let attempts = 0;
+  const baseDelayMs = 3000;
 
   while (attempts < maxAttempts) {
     // Give Azure a moment to register the job before first status check
@@ -83,6 +85,7 @@ async function pollJobStatus(
     const root = baseUrl.replace(/\/jobs$/, '').replace(/\/tasks$/, '');
     const statusBase = root.endsWith('/video/generations') ? `${root}/tasks` : `${root}/tasks`;
     const statusUrl = `${statusBase}/${jobId}${queryParams ? '?' + queryParams : ''}`;
+    console.info('[VideoGen] Polling status URL:', statusUrl, 'jobId:', jobId);
     const response = await fetch(statusUrl, {
       headers: {
         'api-key': apiKey,
@@ -92,7 +95,8 @@ async function pollJobStatus(
     // Azure can return 404 for a few seconds until the job is ready; keep polling
     if (response.status === 404) {
       onProgress?.("Initializing job...");
-      await new Promise((r) => setTimeout(r, 5000));
+      const delayMs = Math.min(15000, baseDelayMs + attempts * 1000);
+      await new Promise((r) => setTimeout(r, delayMs));
       attempts++;
       continue;
     }
@@ -103,6 +107,7 @@ async function pollJobStatus(
     }
 
     const job: any = await response.json();
+    console.info('[VideoGen] Status response:', job);
 
     // Azure uses "succeeded" not "completed"
     if (job.status === 'succeeded') {
@@ -110,7 +115,8 @@ async function pollJobStatus(
       
       // Fetch the actual video from the content endpoint
       const videoUrl = `${statusBase}/${jobId}/content/video${queryParams ? '?' + queryParams : ''}`;
-      
+      onProgress?.(`download_url:${videoUrl}`);
+      console.info('[VideoGen] Video content URL:', videoUrl);
       const videoResponse = await fetch(videoUrl, {
         headers: {
           'api-key': apiKey,
@@ -138,12 +144,13 @@ async function pollJobStatus(
     
     onProgress?.(statusMessages[job.status] || `Status: ${job.status}`);
 
-    // Wait 5 seconds before next poll
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    // Adaptive backoff before next poll
+    const delayMs = Math.min(15000, baseDelayMs + attempts * 1000);
+    await new Promise(resolve => setTimeout(resolve, delayMs));
     attempts++;
   }
 
-  throw new Error('Video generation timed out after 5 minutes');
+  throw new Error('Video generation timed out after 15 minutes');
 }
 
 // Legacy functions removed - using Appwrite storage now

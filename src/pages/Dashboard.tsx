@@ -87,16 +87,27 @@ export default function Dashboard() {
         endpoint: settings.endpoint,
         apiKey: settings.apiKey,
         deployment: settings.deployment,
-        onProgress: (status: string) => {
-          setProgressMessage(status);
-          // Simulate progress increase based on status
-          if (status.includes("created")) setProgress(20);
-          if (status.includes("Initializing")) setProgress(30);
-          if (status.includes("Preprocessing")) setProgress(40);
-          if (status.includes("Generating")) setProgress(60);
-          if (status.includes("Processing")) setProgress(80);
-          if (status.includes("Downloading")) setProgress(90);
-        },
+          onProgress: (status: string) => {
+            setProgressMessage(status);
+
+            // If backend surfaces a direct link, show it immediately
+            if (status.startsWith("download_url:")) {
+              const url = status.replace("download_url:", "").trim();
+              console.info("[VideoGen] Direct download URL:", url);
+              toast.message("Video ready", {
+                description: "Open the direct download link",
+                action: { label: "Open", onClick: () => window.open(url, "_blank") },
+              });
+            }
+
+            // Simulate progress increase based on status
+            if (status.includes("created")) setProgress(20);
+            if (status.includes("Initializing")) setProgress(30);
+            if (status.includes("Preprocessing")) setProgress(40);
+            if (status.includes("Generating")) setProgress(60);
+            if (status.includes("Processing")) setProgress(80);
+            if (status.includes("Downloading")) setProgress(90);
+          },
       });
 
       setProgress(95);
