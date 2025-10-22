@@ -15,6 +15,7 @@ import {
 import { useTheme } from "@/components/ThemeProvider";
 import VideoGenerationForm from "@/components/VideoGenerationForm";
 import VideoGallery from "@/components/VideoGallery";
+import ApiConsole from "@/components/ApiConsole";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function Dashboard() {
   const [progress, setProgress] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
   const [directVideoUrl, setDirectVideoUrl] = useState<string | null>(null);
+  const [apiLogs, setApiLogs] = useState<any[]>([]);
 
   useEffect(() => {
     checkAuth();
@@ -90,6 +92,14 @@ export default function Dashboard() {
         deployment: settings.deployment,
           onProgress: (status: string) => {
             setProgressMessage(status);
+
+            if (status.startsWith("log:")) {
+              try {
+                const payload = JSON.parse(status.slice(4));
+                setApiLogs((prev) => [{ id: `${Date.now()}-${Math.random()}`, ...payload }, ...prev].slice(0, 500));
+              } catch {}
+              return;
+            }
 
             if (status.startsWith("download_url:")) {
               const url = status.replace("download_url:", "").trim();
@@ -196,6 +206,9 @@ export default function Dashboard() {
 
           {/* Video Gallery */}
           <VideoGallery videos={videos} onDelete={handleDelete} directVideoUrl={directVideoUrl} />
+
+          {/* API Console */}
+          <ApiConsole logs={apiLogs} onClear={() => setApiLogs([])} />
         </div>
       </main>
     </div>

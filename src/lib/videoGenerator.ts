@@ -33,21 +33,34 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   onProgress?.("Creating video generation job...");
 
   // Create video generation job
+  const requestBody = {
+    model: deployment,
+    prompt,
+    height,
+    width,
+    n_seconds: duration.toString(),
+    n_variants: variants,
+  };
+
+  try {
+    onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'POST', url: endpoint, body: requestBody, time: Date.now() })}`);
+  } catch {}
+
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'api-key': apiKey,
     },
-    body: JSON.stringify({
-      model: deployment,
-      prompt,
-      height,
-      width,
-      n_seconds: duration.toString(),
-      n_variants: variants
-    }),
+    body: JSON.stringify(requestBody),
   });
+
+  const opLoc = response.headers.get('operation-location') || response.headers.get('Operation-Location');
+
+  try {
+    const preview = await response.clone().text();
+    onProgress?.(`log:${JSON.stringify({ type: 'response', method: 'POST', url: endpoint, status: response.status, headers: { 'operation-location': opLoc || null }, body: preview?.slice(0, 500), time: Date.now() })}`);
+  } catch {}
 
   if (!response.ok) {
     const error = await response.text();
@@ -58,8 +71,8 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   const jobId = job.id;
 
   console.info('[VideoGen] Job created with id:', jobId, 'endpoint:', endpoint);
+  onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'Job created', jobId, operationLocation: opLoc || null, time: Date.now() })}`);
   // Prefer Operation-Location header if provided by Azure for polling
-  const opLoc = response.headers.get('operation-location') || response.headers.get('Operation-Location');
   onProgress?.("Job created. Waiting for processing...");
 
   // Poll for completion and get video
@@ -90,11 +103,16 @@ async function pollJobStatus(
     const computedStatusUrl = `${statusBase}/${jobId}${queryParams ? '?' + queryParams : ''}`;
     const statusUrl = statusUrlOverride || computedStatusUrl;
     console.info('[VideoGen] Polling status URL:', statusUrl, 'jobId:', jobId);
+    try { onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'GET', url: statusUrl, time: Date.now() })}`); } catch {}
     const response = await fetch(statusUrl, {
       headers: {
         'api-key': apiKey,
       },
     });
+    try {
+      const preview = await response.clone().text();
+      onProgress?.(`log:${JSON.stringify({ type: 'response', method: 'GET', url: statusUrl, status: response.status, body: preview?.slice(0, 500), time: Date.now() })}`);
+    } catch {}
 
     // Azure can return 404 for a few seconds until the job is ready; keep polling
     if (response.status === 404) {
@@ -112,6 +130,7 @@ async function pollJobStatus(
 
     const job: any = await response.json();
     console.info('[VideoGen] Status response:', job);
+    try { onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'status', status: job.status, jobId, time: Date.now() })}`); } catch {}
 
     // Azure uses "succeeded" not "completed"
     if (job.status === 'succeeded') {
@@ -127,11 +146,13 @@ async function pollJobStatus(
       }
       onProgress?.(`download_url:${videoUrl}`);
       console.info('[VideoGen] Video content URL:', videoUrl);
+      try { onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'GET', url: videoUrl, time: Date.now() })}`); } catch {}
       const videoResponse = await fetch(videoUrl, {
         headers: {
           'api-key': apiKey,
         },
       });
+      try { onProgress?.(`log:${JSON.stringify({ type: 'response', method: 'GET', url: videoUrl, status: videoResponse.status, time: Date.now() })}`); } catch {}
 
       if (!videoResponse.ok) {
         throw new Error('Failed to download generated video');
@@ -141,9 +162,10 @@ async function pollJobStatus(
       return videoBlob;
     }
 
-    if (job.status === 'failed') {
-      throw new Error(job.error || 'Video generation failed');
-    }
+      if (job.status === 'failed') {
+        try { onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'failed', error: job.error || null, jobId, time: Date.now() })}`); } catch {}
+        throw new Error(job.error || 'Video generation failed');
+      }
 
     // Update progress based on status
     const statusMessages: Record<string, string> = {
@@ -160,6 +182,7 @@ async function pollJobStatus(
     attempts++;
   }
 
+  onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'timeout', time: Date.now() })}`);
   throw new Error('Video generation timed out after 15 minutes');
 }
 
