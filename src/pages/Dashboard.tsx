@@ -2,20 +2,28 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Sparkles, Settings, LogOut, Play, Trash2, Moon, Sun } from "lucide-react";
-import { generateVideo, saveVideoToLocal, getLocalVideos, deleteLocalVideo } from "@/lib/videoGenerator";
+import { Sparkles, Settings, LogOut, Moon, Sun } from "lucide-react";
+import { generateVideo } from "@/lib/videoGenerator";
+import { 
+  uploadVideoToAppwrite, 
+  listVideosFromAppwrite, 
+  deleteVideoFromAppwrite,
+  saveVideoMetadata,
+  VideoMetadata
+} from "@/lib/appwriteStorage";
 import { useTheme } from "@/components/ThemeProvider";
+import VideoGenerationForm from "@/components/VideoGenerationForm";
+import VideoGallery from "@/components/VideoGallery";
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { theme, setTheme } = useTheme();
-  const [prompt, setPrompt] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [videos, setVideos] = useState<Array<{ id: string; url: string; prompt: string; timestamp: string }>>([]);
+  const [videos, setVideos] = useState<VideoMetadata[]>([]);
   const [user, setUser] = useState<any>(null);
+  const [progress, setProgress] = useState(0);
+  const [progressMessage, setProgressMessage] = useState("");
 
   useEffect(() => {
     checkAuth();
@@ -31,8 +39,9 @@ export default function Dashboard() {
     }
   };
 
-  const loadVideos = () => {
-    setVideos(getLocalVideos());
+  const loadVideos = async () => {
+    const videoList = await listVideosFromAppwrite();
+    setVideos(videoList);
   };
 
   const handleLogout = async () => {
@@ -44,8 +53,14 @@ export default function Dashboard() {
     }
   };
 
-  const handleGenerate = async () => {
-    if (!prompt.trim()) {
+  const handleGenerate = async (params: {
+    prompt: string;
+    height: string;
+    width: string;
+    duration: number;
+    variants: string;
+  }) => {
+    if (!params.prompt.trim()) {
       toast.error("Please enter a prompt");
       return;
     }
@@ -59,31 +74,64 @@ export default function Dashboard() {
 
     const settings = JSON.parse(stored);
     setIsGenerating(true);
+    setProgress(10);
+    setProgressMessage("Starting video generation...");
 
     try {
-      toast.info("Generating video... This may take 1-3 minutes");
-      const videoUrl = await generateVideo({
-        prompt,
+      const videoBlob = await generateVideo({
+        prompt: params.prompt,
+        height: params.height,
+        width: params.width,
+        duration: params.duration,
+        variants: params.variants,
         endpoint: settings.endpoint,
         apiKey: settings.apiKey,
         deployment: settings.deployment,
+        onProgress: (status: string) => {
+          setProgressMessage(status);
+          // Simulate progress increase based on status
+          if (status.includes("created")) setProgress(20);
+          if (status.includes("Initializing")) setProgress(30);
+          if (status.includes("Preprocessing")) setProgress(40);
+          if (status.includes("Generating")) setProgress(60);
+          if (status.includes("Processing")) setProgress(80);
+          if (status.includes("Downloading")) setProgress(90);
+        },
       });
 
-      saveVideoToLocal(videoUrl, prompt);
-      loadVideos();
-      toast.success("Video generated successfully!");
-      setPrompt("");
+      setProgress(95);
+      setProgressMessage("Uploading to storage...");
+
+      const metadata = await uploadVideoToAppwrite(
+        videoBlob,
+        params.prompt,
+        params.height,
+        params.width,
+        params.duration.toString()
+      );
+
+      saveVideoMetadata(metadata);
+      await loadVideos();
+      
+      setProgress(100);
+      toast.success("🎉 Video generated successfully!");
     } catch (error: any) {
       toast.error(error.message || "Failed to generate video");
     } finally {
       setIsGenerating(false);
+      setProgress(0);
+      setProgressMessage("");
     }
   };
 
-  const handleDelete = (id: string) => {
-    deleteLocalVideo(id);
-    loadVideos();
-    toast.success("Video deleted");
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteVideoFromAppwrite(id);
+      await loadVideos();
+      toast.success("Video deleted");
+    } catch (error: any) {
+      toast.error("Failed to delete video");
+    }
   };
 
   return (
@@ -125,79 +173,17 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Generator Card */}
-          <Card className="glass glow border-primary/20 lg:col-span-2">
-            <CardHeader>
-              <CardTitle className="text-2xl">Generate Video with Sora-2</CardTitle>
-              <CardDescription>
-                Describe your video and let AI bring it to life with audio
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Textarea
-                placeholder="A train journey through mountains, with scenic views and dramatic lighting..."
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                className="min-h-[120px] glass border-primary/20 resize-none"
-                disabled={isGenerating}
-              />
-              <Button
-                onClick={handleGenerate}
-                disabled={isGenerating || !prompt.trim()}
-                className="w-full"
-                size="lg"
-              >
-                <Play className="mr-2 h-5 w-5" />
-                {isGenerating ? "Generating..." : "Generate Video"}
-              </Button>
-              <p className="text-xs text-muted-foreground text-center">
-                Videos are generated at 720p resolution with up to 12 seconds duration
-              </p>
-            </CardContent>
-          </Card>
+        <div className="grid gap-6">
+          {/* Generator Form */}
+          <VideoGenerationForm
+            onGenerate={handleGenerate}
+            isGenerating={isGenerating}
+            progress={progress}
+            progressMessage={progressMessage}
+          />
 
           {/* Video Gallery */}
-          <div className="lg:col-span-2 space-y-4">
-            <h2 className="text-xl font-semibold">Your Videos</h2>
-            {videos.length === 0 ? (
-              <Card className="glass border-primary/20">
-                <CardContent className="py-12 text-center">
-                  <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                  <p className="text-muted-foreground">No videos yet. Generate your first one!</p>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {videos.map((video) => (
-                  <Card key={video.id} className="glass border-primary/20 overflow-hidden">
-                    <CardContent className="p-0">
-                      <video
-                        src={video.url}
-                        controls
-                        className="w-full aspect-video bg-black"
-                      />
-                      <div className="p-4 space-y-2">
-                        <p className="text-sm line-clamp-2">{video.prompt}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(video.timestamp).toLocaleDateString()}
-                          </span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(video.id)}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            )}
-          </div>
+          <VideoGallery videos={videos} onDelete={handleDelete} />
         </div>
       </main>
     </div>

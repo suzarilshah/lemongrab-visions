@@ -1,10 +1,13 @@
 interface VideoGenerationParams {
   prompt: string;
   duration?: number;
-  size?: string;
+  height?: string;
+  width?: string;
+  variants?: string;
   endpoint: string;
   apiKey: string;
   deployment: string;
+  onProgress?: (status: string) => void;
 }
 
 interface VideoJob {
@@ -14,8 +17,20 @@ interface VideoJob {
   error?: string;
 }
 
-export async function generateVideo(params: VideoGenerationParams): Promise<string> {
-  const { prompt, duration = 12, size = '1280x720', endpoint, apiKey, deployment } = params;
+export async function generateVideo(params: VideoGenerationParams): Promise<Blob> {
+  const { 
+    prompt, 
+    duration = 12, 
+    height = "720",
+    width = "1280",
+    variants = "1",
+    endpoint, 
+    apiKey, 
+    deployment,
+    onProgress
+  } = params;
+
+  onProgress?.("Creating video generation job...");
 
   // Create video generation job
   const response = await fetch(endpoint, {
@@ -27,10 +42,10 @@ export async function generateVideo(params: VideoGenerationParams): Promise<stri
     body: JSON.stringify({
       model: deployment,
       prompt,
-      height: size.split('x')[1] || "720",
-      width: size.split('x')[0] || "1280",
+      height,
+      width,
       n_seconds: duration.toString(),
-      n_variants: "1"
+      n_variants: variants
     }),
   });
 
@@ -42,11 +57,18 @@ export async function generateVideo(params: VideoGenerationParams): Promise<stri
   const job = await response.json();
   const jobId = job.id;
 
-  // Poll for completion
-  return pollJobStatus(jobId, endpoint, apiKey);
+  onProgress?.("Job created. Waiting for processing...");
+
+  // Poll for completion and get video
+  return pollJobStatus(jobId, endpoint, apiKey, onProgress);
 }
 
-async function pollJobStatus(jobId: string, endpoint: string, apiKey: string): Promise<string> {
+async function pollJobStatus(
+  jobId: string, 
+  endpoint: string, 
+  apiKey: string,
+  onProgress?: (status: string) => void
+): Promise<Blob> {
   const maxAttempts = 60; // 5 minutes max (5s intervals)
   let attempts = 0;
 
@@ -67,6 +89,7 @@ async function pollJobStatus(jobId: string, endpoint: string, apiKey: string): P
 
     // Azure can return 404 for a few seconds until the job is ready; keep polling
     if (response.status === 404) {
+      onProgress?.("Initializing job...");
       await new Promise((r) => setTimeout(r, 5000));
       attempts++;
       continue;
@@ -79,40 +102,46 @@ async function pollJobStatus(jobId: string, endpoint: string, apiKey: string): P
 
     const job: any = await response.json();
 
-    if (job.status === 'completed' && job.videoUrl) {
-      return job.videoUrl;
+    // Azure uses "succeeded" not "completed"
+    if (job.status === 'succeeded') {
+      onProgress?.("Video generated! Downloading...");
+      
+      // Fetch the actual video from the content endpoint
+      const videoUrl = `${baseUrl.replace('/jobs', '')}/${jobId}/content/video${queryParams ? '?' + queryParams : ''}`;
+      
+      const videoResponse = await fetch(videoUrl, {
+        headers: {
+          'api-key': apiKey,
+        },
+      });
+
+      if (!videoResponse.ok) {
+        throw new Error('Failed to download generated video');
+      }
+
+      const videoBlob = await videoResponse.blob();
+      return videoBlob;
     }
 
     if (job.status === 'failed') {
       throw new Error(job.error || 'Video generation failed');
     }
 
+    // Update progress based on status
+    const statusMessages: Record<string, string> = {
+      'preprocessing': 'Preprocessing your request...',
+      'running': 'Generating video...',
+      'processing': 'Processing video...',
+    };
+    
+    onProgress?.(statusMessages[job.status] || `Status: ${job.status}`);
+
     // Wait 5 seconds before next poll
     await new Promise(resolve => setTimeout(resolve, 5000));
     attempts++;
   }
 
-  throw new Error('Video generation timed out');
+  throw new Error('Video generation timed out after 5 minutes');
 }
 
-export function saveVideoToLocal(videoUrl: string, prompt: string): void {
-  const videos = getLocalVideos();
-  videos.push({
-    id: Date.now().toString(),
-    url: videoUrl,
-    prompt,
-    timestamp: new Date().toISOString(),
-  });
-  localStorage.setItem('lemongrab_videos', JSON.stringify(videos));
-}
-
-export function getLocalVideos(): Array<{ id: string; url: string; prompt: string; timestamp: string }> {
-  const stored = localStorage.getItem('lemongrab_videos');
-  return stored ? JSON.parse(stored) : [];
-}
-
-export function deleteLocalVideo(id: string): void {
-  const videos = getLocalVideos();
-  const filtered = videos.filter(v => v.id !== id);
-  localStorage.setItem('lemongrab_videos', JSON.stringify(filtered));
-}
+// Legacy functions removed - using Appwrite storage now
