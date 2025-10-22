@@ -16,6 +16,39 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
     toast.success("URL copied to clipboard");
   };
 
+  const downloadWithApiKey = async (url: string) => {
+    try {
+      const stored = localStorage.getItem("lemongrab_settings");
+      if (!stored) {
+        toast.error("Please configure Azure settings first");
+        return;
+      }
+      const { apiKey } = JSON.parse(stored || '{}');
+      if (!apiKey) {
+        toast.error("Missing API key in Settings");
+        return;
+      }
+
+      const res = await fetch(url, { headers: { 'api-key': apiKey } });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(text || `Download failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = `video_${new Date().toISOString().replace(/[:.]/g, '-')}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(href);
+      toast.success("Download started");
+    } catch (e: any) {
+      toast.error(e?.message || "Download failed");
+    }
+  };
+
   return (
     <div className="space-y-4">
       <h2 className="text-xl font-semibold">Your Videos</h2>
@@ -39,7 +72,7 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
                 <div className="flex gap-2">
                   <Button
                     size="sm"
-                    onClick={() => window.open(directVideoUrl, "_blank")}
+                    onClick={() => downloadWithApiKey(directVideoUrl)}
                     className="flex-1"
                   >
                     <Download className="h-3 w-3 mr-1" />

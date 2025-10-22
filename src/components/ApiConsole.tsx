@@ -76,7 +76,7 @@ export default function ApiConsole({ logs, onClear }: ApiConsoleProps) {
 
         <CollapsibleContent>
           <Card className="p-0 overflow-hidden">
-            <ScrollArea className="h-72">
+            <ScrollArea className="h-72 w-full overflow-x-auto">
               <ul className="divide-y divide-border">
                 {logs.map((l: any) => {
                   const id = l.id ?? `${l.time ?? Date.now()}-${Math.random()}`;
@@ -94,7 +94,9 @@ export default function ApiConsole({ logs, onClear }: ApiConsoleProps) {
                             {l.status && (
                               <span className="text-xs font-medium text-muted-foreground">{l.status}</span>
                             )}
-                            {l.url && <span className="text-sm truncate">{l.url}</span>}
+                            {l.url && (
+                              <span className="text-xs sm:text-sm break-all text-muted-foreground">{l.url}</span>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground mt-1">
                             {formatTime(l.time)} {l.message ? `• ${l.message}` : ""}
@@ -121,7 +123,7 @@ export default function ApiConsole({ logs, onClear }: ApiConsoleProps) {
                         </div>
                       </div>
                       {expanded[id] && (
-                        <pre className="mt-3 rounded-md bg-muted p-3 text-xs whitespace-pre-wrap break-words">
+                        <pre className="mt-3 rounded-md bg-muted p-3 text-xs whitespace-pre-wrap break-words break-all max-w-full overflow-x-auto">
                           {pretty({ ...l, body: l.body })}
                         </pre>
                       )}
