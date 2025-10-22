@@ -35,9 +35,20 @@ export default function Dashboard() {
 
   const checkAuth = async () => {
     try {
+      console.log("[Dashboard] Checking authentication...");
       const currentUser = await account.get();
+      console.log("[Dashboard] User authenticated:", currentUser.email);
       setUser(currentUser);
-    } catch (error) {
+    } catch (error: any) {
+      console.error("[Dashboard] Auth check failed:", {
+        error,
+        message: error?.message
+      });
+      
+      if (error?.message === "Failed to fetch") {
+        console.error("[Dashboard] CORS Error: Add", window.location.origin, "to Appwrite Console");
+      }
+      
       navigate("/login");
     }
   };
@@ -138,7 +149,21 @@ export default function Dashboard() {
       setProgress(100);
       toast.success("🎉 Video generated successfully!");
     } catch (error: any) {
-      toast.error(error.message || "Failed to generate video");
+      console.error("[Dashboard] Video generation error:", {
+        error,
+        message: error?.message,
+        stack: error?.stack
+      });
+      
+      // Check if it's a CORS-related error
+      if (error?.message?.includes("CORS") || error?.message === "Failed to fetch") {
+        toast.error("Connection Error", {
+          description: "Cannot connect to Appwrite. Check console for CORS setup instructions.",
+          duration: 10000
+        });
+      } else {
+        toast.error(error.message || "Failed to generate video");
+      }
     } finally {
       setIsGenerating(false);
       setProgress(0);

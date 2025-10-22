@@ -21,10 +21,20 @@ export async function uploadVideoToAppwrite(
   duration: string
 ): Promise<VideoMetadata> {
   try {
+    console.log("[Appwrite] Starting video upload...", {
+      blobSize: videoBlob.size,
+      blobType: videoBlob.type,
+      prompt,
+      dimensions: `${width}x${height}`,
+      duration
+    });
+
     const fileName = `video_${Date.now()}.mp4`;
     const file = new File([videoBlob], fileName, { type: "video/mp4" });
 
+    console.log("[Appwrite] Uploading file to bucket:", BUCKET_ID);
     const response = await storage.createFile(BUCKET_ID, ID.unique(), file);
+    console.log("[Appwrite] File uploaded successfully:", response.$id);
 
     const videoUrl = `https://syd.cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID}/files/${response.$id}/view?project=lemongrab`;
 
@@ -39,15 +49,32 @@ export async function uploadVideoToAppwrite(
     };
 
     return metadata;
-  } catch (error) {
-    console.error("Upload error:", error);
-    throw new Error("Failed to upload video to storage");
+  } catch (error: any) {
+    console.error("[Appwrite] Upload error details:", {
+      error,
+      message: error?.message,
+      code: error?.code,
+      type: error?.type,
+      response: error?.response
+    });
+    
+    // Check if it's a CORS error
+    if (error?.message === "Failed to fetch" || error?.name === "TypeError") {
+      console.error("[Appwrite] CORS Error detected! Please add your domain to Appwrite CORS settings.");
+      console.error("[Appwrite] Current domain:", window.location.origin);
+      console.error("[Appwrite] Go to: Appwrite Console > Settings > add", window.location.origin, "to allowed platforms");
+      throw new Error("CORS Error: Please add your domain to Appwrite CORS settings in the Appwrite Console");
+    }
+    
+    throw new Error(`Failed to upload video: ${error?.message || "Unknown error"}`);
   }
 }
 
 export async function listVideosFromAppwrite(): Promise<VideoMetadata[]> {
   try {
+    console.log("[Appwrite] Fetching video list from bucket:", BUCKET_ID);
     const response = await storage.listFiles(BUCKET_ID);
+    console.log("[Appwrite] Retrieved", response.files.length, "videos");
     
     // Get metadata from localStorage (since Appwrite doesn't store custom metadata easily)
     const stored = localStorage.getItem("lemongrab_video_metadata");
@@ -65,15 +92,26 @@ export async function listVideosFromAppwrite(): Promise<VideoMetadata[]> {
         duration: "12",
       };
     });
-  } catch (error) {
-    console.error("List error:", error);
+  } catch (error: any) {
+    console.error("[Appwrite] List error details:", {
+      error,
+      message: error?.message,
+      code: error?.code
+    });
+    
+    if (error?.message === "Failed to fetch" || error?.name === "TypeError") {
+      console.error("[Appwrite] CORS Error: Add", window.location.origin, "to Appwrite Console");
+    }
+    
     return [];
   }
 }
 
 export async function deleteVideoFromAppwrite(fileId: string): Promise<void> {
   try {
+    console.log("[Appwrite] Deleting video:", fileId);
     await storage.deleteFile(BUCKET_ID, fileId);
+    console.log("[Appwrite] Video deleted successfully");
     
     // Remove from metadata
     const stored = localStorage.getItem("lemongrab_video_metadata");
@@ -82,9 +120,19 @@ export async function deleteVideoFromAppwrite(fileId: string): Promise<void> {
       delete metadataMap[fileId];
       localStorage.setItem("lemongrab_video_metadata", JSON.stringify(metadataMap));
     }
-  } catch (error) {
-    console.error("Delete error:", error);
-    throw new Error("Failed to delete video");
+  } catch (error: any) {
+    console.error("[Appwrite] Delete error details:", {
+      error,
+      message: error?.message,
+      fileId
+    });
+    
+    if (error?.message === "Failed to fetch" || error?.name === "TypeError") {
+      console.error("[Appwrite] CORS Error: Add", window.location.origin, "to Appwrite Console");
+      throw new Error("CORS Error: Please add your domain to Appwrite CORS settings");
+    }
+    
+    throw new Error(`Failed to delete video: ${error?.message || "Unknown error"}`);
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
@@ -7,24 +7,62 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 import { Sparkles } from "lucide-react";
+import CorsSetupAlert from "@/components/CorsSetupAlert";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showCorsAlert, setShowCorsAlert] = useState(false);
   const navigate = useNavigate();
+
+  // Check if we can connect to Appwrite on mount
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        await account.get();
+      } catch (error: any) {
+        if (error?.message === "Failed to fetch" || error?.name === "TypeError") {
+          setShowCorsAlert(true);
+        }
+      }
+    };
+    checkConnection();
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
     try {
+      console.log("[Login] Attempting login for:", email);
       await account.createEmailPasswordSession(email, password);
+      console.log("[Login] Login successful");
       toast.success("Welcome back!");
       navigate("/");
     } catch (error: any) {
-      console.error("Login error:", error);
-      toast.error(error.message || "Login failed");
+      console.error("[Login] Login error details:", {
+        error,
+        message: error?.message,
+        code: error?.code,
+        type: error?.type
+      });
+      
+      // Check if it's a CORS error
+      if (error?.message === "Failed to fetch" || error?.name === "TypeError") {
+        console.error("[Login] CORS Error detected!");
+        console.error("[Login] Current domain:", window.location.origin);
+        console.error("[Login] To fix: Go to your Appwrite Console > Settings > Platforms");
+        console.error("[Login] Add a new Web Platform with hostname:", window.location.origin);
+        
+        setShowCorsAlert(true);
+        toast.error("Connection Error", {
+          description: "Please add your domain to Appwrite CORS settings. Check console for details.",
+          duration: 10000
+        });
+      } else {
+        toast.error(error.message || "Login failed");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -34,7 +72,10 @@ export default function Login() {
     <div className="min-h-screen gradient-animate flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,hsl(158_64%_52%/0.1)_0%,transparent_50%)]" />
       
-      <Card className="w-full max-w-md glass glow border-primary/20 relative z-10">
+      <div className="w-full max-w-md relative z-10 space-y-4">
+        {showCorsAlert && <CorsSetupAlert />}
+        
+        <Card className="glass glow border-primary/20">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
             <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary to-primary/50 flex items-center justify-center">
@@ -90,6 +131,7 @@ export default function Login() {
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }
