@@ -79,8 +79,10 @@ async function pollJobStatus(
     }
 
     const [baseUrl, queryParams] = endpoint.split('?');
-    const statusUrl = `${baseUrl.replace('/jobs', '')}/${jobId}${queryParams ? '?' + queryParams : ''}`;
-
+    // Azure status endpoint is under /video/generations/tasks/{id}
+    const root = baseUrl.replace(/\/jobs$/, '').replace(/\/tasks$/, '');
+    const statusBase = root.endsWith('/video/generations') ? `${root}/tasks` : `${root}/tasks`;
+    const statusUrl = `${statusBase}/${jobId}${queryParams ? '?' + queryParams : ''}`;
     const response = await fetch(statusUrl, {
       headers: {
         'api-key': apiKey,
@@ -107,7 +109,7 @@ async function pollJobStatus(
       onProgress?.("Video generated! Downloading...");
       
       // Fetch the actual video from the content endpoint
-      const videoUrl = `${baseUrl.replace('/jobs', '')}/${jobId}/content/video${queryParams ? '?' + queryParams : ''}`;
+      const videoUrl = `${statusBase}/${jobId}/content/video${queryParams ? '?' + queryParams : ''}`;
       
       const videoResponse = await fetch(videoUrl, {
         headers: {
