@@ -25,10 +25,12 @@ export async function generateVideo(params: VideoGenerationParams): Promise<stri
       'api-key': apiKey,
     },
     body: JSON.stringify({
+      model: deployment,
       prompt,
-      duration,
-      size,
-      deployment,
+      height: size.split('x')[1] || "720",
+      width: size.split('x')[0] || "1280",
+      n_seconds: duration.toString(),
+      n_variants: "1"
     }),
   });
 
