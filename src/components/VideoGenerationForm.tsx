@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Play } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import PriceEstimator from "@/components/PriceEstimator";
+import SoraLimitationsDialog from "@/components/SoraLimitationsDialog";
 
 interface VideoGenerationFormProps {
   onGenerate: (params: {
@@ -47,10 +48,15 @@ export default function VideoGenerationForm({
   return (
     <Card className="glass glow border-primary/20">
       <CardHeader>
-        <CardTitle className="text-2xl">Generate Video with Sora-2</CardTitle>
-        <CardDescription>
-          Describe your video and customize the generation parameters
-        </CardDescription>
+        <div className="flex items-start justify-between">
+          <div>
+            <CardTitle className="text-2xl">Generate Video with Sora-2</CardTitle>
+            <CardDescription>
+              Describe your video and customize the generation parameters
+            </CardDescription>
+          </div>
+          <SoraLimitationsDialog />
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="space-y-2">

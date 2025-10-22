@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Sparkles, Settings, LogOut, Moon, Sun } from "lucide-react";
+import { Sparkles, Settings, LogOut, Moon, Sun, Images } from "lucide-react";
 import { generateVideo } from "@/lib/videoGenerator";
 import { 
   uploadVideoToAppwrite, 
@@ -181,11 +181,20 @@ export default function Dashboard() {
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={() => navigate("/gallery")}
+                title="Gallery"
+              >
+                <Images className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => navigate("/settings")}
+                title="Settings"
               >
                 <Settings className="h-5 w-5" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={handleLogout}>
+              <Button variant="ghost" size="icon" onClick={handleLogout} title="Logout">
                 <LogOut className="h-5 w-5" />
               </Button>
             </div>

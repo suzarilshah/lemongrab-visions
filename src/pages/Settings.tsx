@@ -62,7 +62,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="min-h-screen gradient-animate p-4 md:p-8">
+    <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="max-w-3xl mx-auto space-y-6">
         <Button
           variant="ghost"
@@ -73,7 +73,7 @@ export default function Settings() {
           Back to Dashboard
         </Button>
 
-        <Card className="glass glow border-primary/20">
+        <Card className="border-border/50">
           <CardHeader>
             <CardTitle className="text-2xl">Azure OpenAI Settings</CardTitle>
             <CardDescription>
@@ -91,7 +91,7 @@ export default function Settings() {
                   value={endpoint}
                   onChange={(e) => setEndpoint(e.target.value)}
                   required
-                  className="glass border-primary/20 font-mono text-sm"
+                  className="border-border/50 font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
                   The full endpoint URL including the API version parameter
@@ -107,7 +107,7 @@ export default function Settings() {
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                   required
-                  className="glass border-primary/20 font-mono text-sm"
+                  className="border-border/50 font-mono text-sm"
                 />
                 <p className="text-xs text-muted-foreground">
                   Your Azure OpenAI API key for authentication
@@ -123,7 +123,7 @@ export default function Settings() {
                   value={deployment}
                   onChange={(e) => setDeployment(e.target.value)}
                   required
-                  className="glass border-primary/20"
+                  className="border-border/50"
                 />
                 <p className="text-xs text-muted-foreground">
                   The name of your Sora model deployment (e.g., sora-2 or sora)
@@ -132,7 +132,7 @@ export default function Settings() {
 
               <Button
                 type="submit"
-                className="w-full bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                className="w-full"
                 disabled={isLoading}
               >
                 <Save className="mr-2 h-4 w-4" />
