@@ -88,15 +88,17 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
           "X-Appwrite-Project": "lemongrab",
         },
         body: JSON.stringify({
-          subject,
-          action,
-          environment,
-          lighting,
-          camera_shot: cameraShot,
-          camera_angle: cameraAngle,
-          camera_movement: cameraMovement,
-          style,
-          details,
+          data: JSON.stringify({
+            subject,
+            action,
+            environment,
+            lighting,
+            camera_shot: cameraShot,
+            camera_angle: cameraAngle,
+            camera_movement: cameraMovement,
+            style,
+            details,
+          }),
         }),
       });
 
@@ -309,10 +311,12 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
             <Button
               onClick={handleUsePrompt}
               disabled={!generatedPrompt.trim()}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              variant="default"
+              size="lg"
+              aria-label="Use generated prompt"
             >
               <Check className="mr-2 h-4 w-4" />
-              ✅ Use This Prompt
+              Use This Prompt
             </Button>
           </div>
         </div>
