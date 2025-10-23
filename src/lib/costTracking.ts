@@ -1,8 +1,5 @@
-import { databases } from "@/lib/appwrite";
-import { DATABASE_ID } from "@/lib/appwrite";
+import { databases, DATABASE_ID, GENERATIONS_COLLECTION_ID } from "@/lib/appwrite";
 import { ID } from "appwrite";
-
-const GENERATIONS_COLLECTION_ID = "video_generations";
 
 interface GenerationData {
   prompt: string;
@@ -13,6 +10,7 @@ interface GenerationData {
   generationMode: string;
   estimatedCost: number;
   videoId?: string;
+  profileName?: string;
 }
 
 export function calculateCost(
@@ -55,6 +53,7 @@ export async function saveGenerationRecord(data: GenerationData): Promise<void> 
         generationMode: data.generationMode,
         estimatedCost: data.estimatedCost,
         videoId: data.videoId || null,
+        profileName: data.profileName || null,
       }
     );
     console.log("[CostTracking] Generation record saved successfully");

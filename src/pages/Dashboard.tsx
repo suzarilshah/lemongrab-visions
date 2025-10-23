@@ -22,6 +22,7 @@ import Sora2FeaturesDialog from "@/components/Sora2FeaturesDialog";
 import CostTracking from "@/components/CostTracking";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveGenerationRecord, calculateCost } from "@/lib/costTracking";
+import { getActiveProfile } from "@/lib/profiles";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -34,15 +35,29 @@ export default function Dashboard() {
   const [directVideoUrl, setDirectVideoUrl] = useState<string | null>(null);
   const [apiLogs, setApiLogs] = useState<any[]>([]);
   const [soraVersion, setSoraVersion] = useState<string>("sora-1");
+  const [activeProfileName, setActiveProfileName] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("generate");
 
   useEffect(() => {
     checkAuth();
     loadVideos();
-    loadSoraVersion();
+    loadActiveProfile();
   }, []);
 
-  const loadSoraVersion = () => {
+  const loadActiveProfile = () => {
+    const profile = getActiveProfile();
+    if (profile) {
+      setSoraVersion(profile.soraVersion || "sora-1");
+      setActiveProfileName(profile.name);
+      return;
+    }
+    const stored = localStorage.getItem("lemongrab_settings");
+    if (stored) {
+      const settings = JSON.parse(stored);
+      setSoraVersion(settings.soraVersion || "sora-1");
+      setActiveProfileName("Default");
+    }
+  };
     const stored = localStorage.getItem("lemongrab_settings");
     if (stored) {
       const settings = JSON.parse(stored);
@@ -99,14 +114,25 @@ export default function Dashboard() {
       return;
     }
 
-    const stored = localStorage.getItem("lemongrab_settings");
-    if (!stored) {
-      toast.error("Please configure your Azure settings first");
-      navigate("/settings");
-      return;
+    // Resolve settings from active profile or legacy settings
+    const profile = getActiveProfile();
+    let settings: any = null;
+    if (profile) {
+      settings = {
+        endpoint: profile.endpoint,
+        apiKey: profile.apiKey,
+        deployment: profile.deployment,
+        soraVersion: profile.soraVersion,
+      };
+    } else {
+      const stored = localStorage.getItem("lemongrab_settings");
+      if (!stored) {
+        toast.error("Please configure your Azure settings first");
+        navigate("/settings");
+        return;
+      }
+      settings = JSON.parse(stored);
     }
-
-    const settings = JSON.parse(stored);
     setIsGenerating(true);
     setProgress(10);
     setProgressMessage("Starting video generation...");
@@ -164,7 +190,9 @@ export default function Dashboard() {
         params.height,
         params.width,
         params.duration.toString(),
-        soraVersion
+        soraVersion,
+        // Ensure full video_ prefix is present
+        result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined
       );
 
       saveVideoMetadata(metadata);
@@ -184,10 +212,20 @@ export default function Dashboard() {
         params.height,
         params.duration.toString(),
         params.variants,
-        soraVersion
+        settings.soraVersion || soraVersion
       );
 
       await saveGenerationRecord({
+        prompt: params.prompt,
+        soraModel: settings.soraVersion || soraVersion,
+        duration: params.duration,
+        resolution: `${params.width}x${params.height}`,
+        variants: parseInt(params.variants),
+        generationMode,
+        estimatedCost,
+        videoId: result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined,
+        profileName: activeProfileName || (getActiveProfile()?.name || "Default"),
+      });
         prompt: params.prompt,
         soraModel: soraVersion,
         duration: params.duration,

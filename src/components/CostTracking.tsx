@@ -27,6 +27,7 @@ interface GenerationRecord {
   generationMode: string;
   estimatedCost: number;
   videoId?: string;
+  profileName?: string;
 }
 
 export default function CostTracking() {
@@ -37,6 +38,7 @@ export default function CostTracking() {
     totalGenerations: 0,
     bySoraModel: {} as Record<string, number>,
     byMode: {} as Record<string, number>,
+    byProfile: {} as Record<string, number>,
   });
 
   useEffect(() => {
@@ -59,10 +61,13 @@ export default function CostTracking() {
       const totalCost = data.reduce((sum, r) => sum + r.estimatedCost, 0);
       const bySoraModel: Record<string, number> = {};
       const byMode: Record<string, number> = {};
+      const byProfile: Record<string, number> = {};
 
       data.forEach((record) => {
         bySoraModel[record.soraModel] = (bySoraModel[record.soraModel] || 0) + record.estimatedCost;
         byMode[record.generationMode] = (byMode[record.generationMode] || 0) + record.estimatedCost;
+        const profileKey = record.profileName || 'default';
+        byProfile[profileKey] = (byProfile[profileKey] || 0) + record.estimatedCost;
       });
 
       setStats({
@@ -70,6 +75,7 @@ export default function CostTracking() {
         totalGenerations: data.length,
         bySoraModel,
         byMode,
+        byProfile,
       });
     } catch (error: any) {
       console.error("Failed to load cost records:", error);
@@ -167,6 +173,31 @@ export default function CostTracking() {
         </CardContent>
       </Card>
 
+      {/* Cost by Profile */}
+      <Card className="glass border-primary/20">
+        <CardHeader>
+          <CardTitle>Cost by Profile</CardTitle>
+          <CardDescription>Spending grouped by configured profiles</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {Object.entries(stats.byProfile).map(([profile, cost]) => (
+              <div key={profile} className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{profile}</span>
+                </div>
+                <span className="text-sm font-bold">${cost.toFixed(2)}</span>
+              </div>
+            ))}
+            {Object.keys(stats.byProfile).length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No data available yet
+              </p>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Generation History Table */}
       <Card className="glass border-primary/20">
         <CardHeader>
@@ -185,6 +216,7 @@ export default function CostTracking() {
                   <TableRow>
                     <TableHead>Date & Time</TableHead>
                     <TableHead>Video ID</TableHead>
+                    <TableHead>Profile</TableHead>
                     <TableHead>Model</TableHead>
                     <TableHead>Mode</TableHead>
                     <TableHead>Resolution</TableHead>
@@ -201,12 +233,15 @@ export default function CostTracking() {
                       </TableCell>
                       <TableCell className="text-xs font-mono">
                         {record.videoId ? (
-                          <span className="truncate max-w-[100px] inline-block">
+                          <span className="truncate max-w-[140px] inline-block">
                             {record.videoId}
                           </span>
                         ) : (
                           "-"
                         )}
+                      </TableCell>
+                      <TableCell className="text-xs">
+                        {record.profileName || 'Default'}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">

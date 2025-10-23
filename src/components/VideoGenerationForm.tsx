@@ -10,6 +10,7 @@ import { Play, Upload } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import PriceEstimator from "@/components/PriceEstimator";
 import { listVideos } from "@/lib/videoGenerator";
+import { getActiveProfile } from "@/lib/profiles";
 import { toast } from "sonner";
 
 interface VideoGenerationFormProps {
@@ -82,6 +83,7 @@ export default function VideoGenerationForm({
     loadSoraVersion();
   }, []);
 
+
   useEffect(() => {
     if (soraVersion === "sora-2" && mode === "video-to-video") {
       loadAvailableVideos();
@@ -89,20 +91,26 @@ export default function VideoGenerationForm({
   }, [soraVersion, mode]);
 
   const loadAvailableVideos = async () => {
-    const stored = localStorage.getItem("lemongrab_settings");
-    if (!stored) return;
-
-    const settings = JSON.parse(stored);
-    const videos = await listVideos(settings.endpoint, settings.apiKey);
+    const profile = getActiveProfile();
+    if (!profile) return;
+    const videos = await listVideos(profile.endpoint, profile.apiKey);
     setAvailableVideos(videos.filter(v => v.status === "completed"));
   };
 
   const loadSoraVersion = () => {
+    const profile = getActiveProfile();
+    if (profile) {
+      setSoraVersion(profile.soraVersion || "sora-1");
+      if (profile.soraVersion === "sora-2") {
+        setResolution("1280x720");
+        setDuration("4");
+      }
+      return;
+    }
     const stored = localStorage.getItem("lemongrab_settings");
     if (stored) {
       const settings = JSON.parse(stored);
       setSoraVersion(settings.soraVersion || "sora-1");
-      // Set default resolution based on version
       if (settings.soraVersion === "sora-2") {
         setResolution("1280x720");
         setDuration("4");

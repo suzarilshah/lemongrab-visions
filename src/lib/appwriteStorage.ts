@@ -12,7 +12,9 @@ export interface VideoMetadata {
   width: string;
   duration: string;
   soraVersion?: string;
+  azureVideoId?: string;
 }
+
 
 export async function uploadVideoToAppwrite(
   videoBlob: Blob,
@@ -20,7 +22,8 @@ export async function uploadVideoToAppwrite(
   height: string,
   width: string,
   duration: string,
-  soraVersion?: string
+  soraVersion?: string,
+  azureVideoId?: string
 ): Promise<VideoMetadata> {
   try {
     console.log("[Appwrite] Starting video upload...", {
@@ -49,8 +52,8 @@ export async function uploadVideoToAppwrite(
       width,
       duration,
       soraVersion: soraVersion || "sora-1",
+      azureVideoId,
     };
-
     return metadata;
   } catch (error: any) {
     console.error("[Appwrite] Upload error details:", {

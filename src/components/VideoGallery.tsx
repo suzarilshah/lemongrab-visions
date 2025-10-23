@@ -115,7 +115,7 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm line-clamp-2 flex-1">{video.prompt}</p>
                     <Badge variant="outline" className="text-xs shrink-0">
-                      {video.soraVersion || 'sora-1'}
+                      {(video.soraVersion || 'sora-1').toUpperCase()}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">
@@ -123,14 +123,16 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
                       variant="ghost"
                       size="sm"
                       onClick={() => {
-                        navigator.clipboard.writeText(video.id);
+                        const vid = (video as any).azureVideoId || video.id;
+                        const fullId = vid?.startsWith("video_") ? vid : `video_${vid}`;
+                        navigator.clipboard.writeText(fullId);
                         toast.success("Video ID copied to clipboard");
                       }}
                       className="text-xs h-7 px-2 justify-start overflow-hidden"
-                      title={video.id}
+                      title={(video as any).azureVideoId || video.id}
                     >
                       <Copy className="h-3 w-3 mr-1 flex-shrink-0" />
-                      <span className="truncate">{video.id}</span>
+                      <span className="truncate">{((video as any).azureVideoId || video.id)}</span>
                     </Button>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">

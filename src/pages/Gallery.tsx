@@ -133,12 +133,17 @@ export default function Gallery() {
             {videos.map((video) => (
               <Card key={video.id} className="glass border-primary/20 overflow-hidden group hover:border-primary/40 transition-all">
                 <CardContent className="p-0">
-                  <div className="relative aspect-video bg-black">
-                    <video
-                      src={video.url}
-                      className="w-full h-full object-cover"
-                      poster={video.url}
-                    />
+                    <div className="relative aspect-video bg-black">
+                      <video
+                        src={video.url}
+                        className="w-full h-full object-cover"
+                        poster={video.url}
+                        preload="metadata"
+                        muted
+                        playsInline
+                        loop
+                        autoPlay
+                      />
                     <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                       <Button
                         size="sm"
@@ -167,13 +172,15 @@ export default function Gallery() {
                         variant="ghost"
                         size="sm"
                         onClick={() => {
-                          navigator.clipboard.writeText(video.id);
+                          const vid = (video as any).azureVideoId || video.id;
+                          const fullId = vid?.startsWith("video_") ? vid : `video_${vid}`;
+                          navigator.clipboard.writeText(fullId);
                           toast.success("Video ID copied to clipboard");
                         }}
                         className="text-xs h-6 px-2"
                       >
                         <Copy className="h-3 w-3 mr-1" />
-                        ID: {video.id.slice(0, 8)}...
+                        ID: {(((video as any).azureVideoId || video.id) as string)}
                       </Button>
                     </div>
                     <p className="text-sm line-clamp-2">{video.prompt}</p>
