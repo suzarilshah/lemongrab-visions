@@ -9,7 +9,7 @@ export default async ({ req, res, log, error }) => {
   }
 
   try {
-    // Parse the request body
+    // Parse the request body and normalize Appwrite Execution payloads
     let payload;
     try {
       payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
@@ -22,7 +22,23 @@ export default async ({ req, res, log, error }) => {
       );
     }
 
+    // Appwrite HTTP executions send user payload under `data` (often as a JSON string)
+    let input = payload;
+    try {
+      if (payload && typeof payload === 'object' && 'data' in payload) {
+        input = typeof payload.data === 'string' ? JSON.parse(payload.data) : payload.data;
+      }
+    } catch (e) {
+      log('Failed to parse payload.data as JSON:', payload?.data);
+      return res.json(
+        { error: 'Invalid JSON in data field' },
+        400,
+        { 'Access-Control-Allow-Origin': '*' }
+      );
+    }
+
     log('Received payload:', JSON.stringify(payload));
+    log('Normalized input:', JSON.stringify(input));
 
     const {
       subject = '',
@@ -34,7 +50,7 @@ export default async ({ req, res, log, error }) => {
       camera_movement = '',
       style = '',
       details = '',
-    } = payload;
+    } = input;
 
     log('Extracted fields - subject:', subject, 'action:', action);
 
