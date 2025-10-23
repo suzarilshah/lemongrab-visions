@@ -41,6 +41,15 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   // Detect if using Sora 2 (OpenAI format) or Sora 1 (Azure format)
   const isSora2 = deployment.toLowerCase().includes('sora-2');
 
+  // For Sora 2 remix, use different endpoint structure
+  let requestEndpoint = endpoint;
+  if (isSora2 && remixVideoId) {
+    // Sora 2 remix uses: POST .../videos/{video_id}/remix
+    const [baseUrl, queryParams] = endpoint.split('?');
+    const root = baseUrl.replace(/\/videos$/, '');
+    requestEndpoint = `${root}/videos/${remixVideoId}/remix${queryParams ? '?' + queryParams : ''}`;
+  }
+
   // For Sora 2 with file uploads, use FormData; otherwise use JSON
   const needsFormData = isSora2 && inputReference;
   
@@ -59,7 +68,9 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
       formData.append('input_reference', inputReference);
     }
     
-    if (remixVideoId) {
+    // For Sora 2, remix_video_id is in the URL, not the body
+    // For Sora 1, keep it in the body
+    if (remixVideoId && !isSora2) {
       formData.append('remix_video_id', remixVideoId);
     }
 
@@ -88,8 +99,8 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
       n_variants: variants,
     };
 
-    // Add remix_video_id if provided (for video-to-video)
-    if (remixVideoId && isSora2) {
+    // Add remix_video_id if provided (for Sora 1 only - Sora 2 uses URL)
+    if (remixVideoId && !isSora2) {
       requestBody.remix_video_id = remixVideoId;
     }
 
@@ -104,16 +115,16 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   }
 
   try {
-    onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'POST', url: endpoint, body: requestBody, time: Date.now() })}`);
+    onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'POST', url: requestEndpoint, body: requestBody, time: Date.now() })}`);
   } catch {}
 
-  const response = await fetch(endpoint, fetchOptions);
+  const response = await fetch(requestEndpoint, fetchOptions);
 
   const opLoc = response.headers.get('operation-location') || response.headers.get('Operation-Location');
 
   try {
     const preview = await response.clone().text();
-    onProgress?.(`log:${JSON.stringify({ type: 'response', method: 'POST', url: endpoint, status: response.status, headers: { 'operation-location': opLoc || null }, body: preview?.slice(0, 500), time: Date.now() })}`);
+    onProgress?.(`log:${JSON.stringify({ type: 'response', method: 'POST', url: requestEndpoint, status: response.status, headers: { 'operation-location': opLoc || null }, body: preview?.slice(0, 500), time: Date.now() })}`);
   } catch {}
 
   if (!response.ok) {
