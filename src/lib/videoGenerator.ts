@@ -85,23 +85,34 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
     requestBody = { note: 'FormData with file upload' };
   } else {
     // Use JSON for text-only requests
-    requestBody = isSora2 ? {
-      model: deployment,
-      prompt,
-      size: `${width}x${height}`, // Sora 2 uses "size" (e.g., "1280x720")
-      seconds: duration.toString(), // Sora 2 uses "seconds" not "n_seconds"
-    } : {
-      model: deployment,
-      prompt,
-      height,
-      width,
-      n_seconds: duration.toString(),
-      n_variants: variants,
-    };
-
-    // Add remix_video_id if provided (for Sora 1 only - Sora 2 uses URL)
-    if (remixVideoId && !isSora2) {
-      requestBody.remix_video_id = remixVideoId;
+    if (isSora2 && remixVideoId) {
+      // Sora 2 remix: Only send prompt parameter
+      requestBody = {
+        prompt,
+      };
+    } else if (isSora2) {
+      // Sora 2 regular generation
+      requestBody = {
+        model: deployment,
+        prompt,
+        size: `${width}x${height}`,
+        seconds: duration.toString(),
+      };
+    } else {
+      // Sora 1 format
+      requestBody = {
+        model: deployment,
+        prompt,
+        height,
+        width,
+        n_seconds: duration.toString(),
+        n_variants: variants,
+      };
+      
+      // Add remix_video_id if provided (for Sora 1 only)
+      if (remixVideoId) {
+        requestBody.remix_video_id = remixVideoId;
+      }
     }
 
     fetchOptions = {
