@@ -251,23 +251,6 @@ export default function VideoGenerationForm({
                 disabled={isGenerating}
               />
             </div>
-
-            {soraVersion === "sora-2" && (
-              <div className="space-y-2">
-                <Label htmlFor="audio">Generate Audio</Label>
-                <div className="flex items-center space-x-2 h-10">
-                  <Switch
-                    id="audio"
-                    checked={generateAudio}
-                    onCheckedChange={setGenerateAudio}
-                    disabled={isGenerating}
-                  />
-                  <span className="text-sm text-muted-foreground">
-                    {generateAudio ? "With sound" : "Silent"}
-                  </span>
-                </div>
-              </div>
-            )}
           </div>
           
           <PriceEstimator

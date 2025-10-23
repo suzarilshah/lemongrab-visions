@@ -55,10 +55,6 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
     formData.append('size', `${width}x${height}`);
     formData.append('seconds', duration.toString());
     
-    if (audio === true) {
-      formData.append('audio', 'true');
-    }
-    
     if (inputReference) {
       formData.append('input_reference', inputReference);
     }
@@ -91,11 +87,6 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
       n_seconds: duration.toString(),
       n_variants: variants,
     };
-
-    // Add audio parameter only if it's explicitly true (for Sora 2)
-    if (audio === true && isSora2) {
-      requestBody.audio = true;
-    }
 
     // Add remix_video_id if provided (for video-to-video)
     if (remixVideoId && isSora2) {
