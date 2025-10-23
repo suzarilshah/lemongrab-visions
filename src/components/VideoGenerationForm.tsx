@@ -6,12 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Play, Upload } from "lucide-react";
+import { Play, Upload, Sparkles } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import PriceEstimator from "@/components/PriceEstimator";
 import { listVideos } from "@/lib/videoGenerator";
 import { getActiveProfile } from "@/lib/profiles";
 import { toast } from "sonner";
+import PromptBuilderModal from "@/components/PromptBuilderModal";
 
 interface VideoGenerationFormProps {
   onGenerate: (params: {
@@ -78,6 +79,7 @@ export default function VideoGenerationForm({
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [availableVideos, setAvailableVideos] = useState<Array<{ id: string; status: string; model: string }>>([]);
+  const [showPromptBuilder, setShowPromptBuilder] = useState(false);
 
   useEffect(() => {
     loadSoraVersion();
@@ -216,7 +218,20 @@ export default function VideoGenerationForm({
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="prompt">Video Prompt</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="prompt">Video Prompt</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPromptBuilder(true)}
+              disabled={isGenerating}
+              className="gap-1"
+            >
+              <Sparkles className="h-4 w-4" />
+              Generate Prompt
+            </Button>
+          </div>
           <Textarea
             id="prompt"
             placeholder="A train journey through mountains, with scenic views and dramatic lighting..."
@@ -231,6 +246,12 @@ export default function VideoGenerationForm({
             <strong>Example:</strong> "Wide shot of a child flying a red kite in a grassy park, golden hour sunlight, camera slowly pans upward."
           </p>
         </div>
+
+        <PromptBuilderModal
+          open={showPromptBuilder}
+          onOpenChange={setShowPromptBuilder}
+          onUsePrompt={(generatedPrompt) => setPrompt(generatedPrompt)}
+        />
 
         {/* Hide resolution and duration for video-to-video remix mode */}
         {!(soraVersion === "sora-2" && mode === "video-to-video") && (
@@ -263,7 +284,7 @@ export default function VideoGenerationForm({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="duration">Duration</Label>
+                <Label htmlFor="duration">Duration (seconds)</Label>
                 {soraVersion === "sora-2" ? (
                   <Select value={duration} onValueChange={setDuration}>
                     <SelectTrigger id="duration" className="glass border-primary/20">
@@ -284,7 +305,7 @@ export default function VideoGenerationForm({
                     value={duration}
                     onChange={(e) => setDuration(e.target.value)}
                     min="1"
-                    max="20"
+                    placeholder="e.g., 12"
                     className="glass border-primary/20"
                     disabled={isGenerating}
                   />

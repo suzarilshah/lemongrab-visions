@@ -1,0 +1,10 @@
+{
+  "name": "generate-video-prompt",
+  "version": "1.0.0",
+  "description": "Generate optimized video prompts using GPT-5",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "node-fetch": "^3.3.0"
+  }
+}

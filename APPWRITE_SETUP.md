@@ -1,63 +1,70 @@
-# Appwrite Database Setup for Cost Tracking
+# Appwrite Setup Guide
 
-## Database Collection Setup
+This document contains instructions for setting up the required Appwrite collections and functions for the Lemongrab video generator application.
 
-You need to create a collection in your Appwrite database to track video generation costs.
+## Database Setup
 
-### Collection Details
+### Database ID: `lemongrab_db`
 
-**Database ID**: `lemongrab_db` (should already exist)
-**Collection ID**: `video_generations`
+### Collections
 
-### Attributes
+#### 1. Settings Collection
+- **Collection ID**: `settings`
+- **Attributes**: (Configure as needed for app settings)
 
-Create the following attributes in the `video_generations` collection:
+#### 2. Video Generations Collection
+- **Collection ID**: `video_generations`
+- **Purpose**: Stores generation records for cost tracking
 
-1. **prompt** (String, required)
-   - Size: 1000
-   - Description: The video generation prompt
+**Required Attributes:**
+- `prompt` (String, size: 2000, required: true)
+- `soraModel` (String, size: 50, required: true)
+- `duration` (Integer, min: 1, max: 20, required: true)
+- `resolution` (String, size: 50, required: true)
+- `variants` (Integer, min: 1, max: 4, required: true)
+- `generationMode` (String, size: 50, required: true)
+- `estimatedCost` (Float, min: 0, required: true)
+- `videoId` (String, size: 200, required: false)
+- `profileName` (String, size: 100, required: false)
 
-2. **soraModel** (String, required)
-   - Size: 20
-   - Description: The Sora model used (sora-1 or sora-2)
+**Permissions:**
+- Create: Users
+- Read: Users
+- Update: Users
+- Delete: Users
 
-3. **duration** (Integer, required)
-   - Description: Video duration in seconds
+## Functions Setup
 
-4. **resolution** (String, required)
-   - Size: 20
-   - Description: Video resolution (e.g., "1280x720")
+### Generate Video Prompt Function
 
-5. **variants** (Integer, required)
-   - Description: Number of variants generated
+This function generates optimized video prompts using GPT-5.
 
-6. **generationMode** (String, required)
-   - Size: 50
-   - Description: Generation mode (text-to-video, image-to-video, video-to-video)
+#### Setup Instructions:
 
-7. **estimatedCost** (Float, required)
-   - Description: Estimated cost in USD
+1. **Create Function in Appwrite Console**
+   - Go to: https://syd.cloud.appwrite.io/console/project-lemongrab/functions
+   - Click "Create Function"
+   - **Function ID**: `generate-video-prompt`
+   - **Name**: Generate Video Prompt
+   - **Runtime**: Node.js 18+
+   - **Entrypoint**: `index.js`
+   - **Execute Access**: Any
 
-8. **videoId** (String, optional)
-   - Size: 100
-   - Description: The Azure video ID
+2. **Deploy the Code**
+   - Copy code from `appwrite/functions/generate-video-prompt/index.js`
+   - Copy `package.json` from `appwrite/functions/generate-video-prompt/package.json`
+   - In Appwrite Console > Function > Deployment tab
+   - Create new deployment with both files
+   - Click "Deploy"
 
-### Permissions
+3. **Test**
+   - After deployment completes, test with sample payload (see function README)
 
-Set the following permissions:
-- **Create**: Any authenticated user
-- **Read**: Any authenticated user (or restrict to document creator)
-- **Update**: Document creator only
-- **Delete**: Document creator only
+For detailed information, see: `appwrite/functions/generate-video-prompt/README.md`
 
-### Steps to Create in Appwrite Console
+## Notes
 
-1. Go to your Appwrite Console
-2. Navigate to Databases → `lemongrab_db`
-3. Click "Create Collection"
-4. Set Collection ID to `video_generations`
-5. Add each attribute listed above
-6. Set the permissions as specified
-7. Save the collection
-
-After creating this collection, the Cost Tracking feature will work automatically.
+- Make sure to create the database and collections before running the application
+- Set appropriate permissions based on your security requirements
+- The video_generations collection is used by the Cost Tracking feature
+- The generate-video-prompt function requires no additional secrets (API key is embedded)
