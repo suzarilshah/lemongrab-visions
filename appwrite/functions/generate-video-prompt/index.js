@@ -1,5 +1,3 @@
-import fetch from 'node-fetch';
-
 export default async ({ req, res, log, error }) => {
   // Handle CORS
   if (req.method === 'OPTIONS') {
