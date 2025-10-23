@@ -15,37 +15,54 @@ export default async ({ req, res, log, error }) => {
     log('Request body type:', typeof req.body);
     log('Request body:', JSON.stringify(req.body));
     
-    // Parse the request body
+    // Parse the request body robustly across runtimes
     let payload = req.body;
-    
-    // Step 1: Parse if body is a string
-    if (typeof payload === 'string') {
-      try {
-        if (payload.trim() === '') {
-          // When calling the Executions API without { data }, Appwrite forwards an empty string
-          error('✗ Step 1: Empty request body string received');
-          return res.json(
-            { error: 'Empty request body. When using /executions, send { data: JSON.stringify(payload) }.' },
-            400,
-            { 'Access-Control-Allow-Origin': '*' }
-          );
-        }
-        payload = JSON.parse(payload);
-        log('✓ Step 1: Parsed string body to object');
-      } catch (parseError) {
-        error('✗ Step 1: Failed to parse request body string');
-        error('Raw body was:', payload);
-        return res.json(
-          { error: 'Invalid JSON in request body', received: payload },
-          400,
-          { 'Access-Control-Allow-Origin': '*' }
-        );
-      }
-    }
 
-    log('Step 1 complete - Payload type:', typeof payload);
-    log('Step 1 complete - Payload keys:', Object.keys(payload || {}));
-    log('Step 1 complete - Payload:', JSON.stringify(payload));
+    // Prefer explicit bodyText/bodyJson if available (Appwrite may redact body in logs but still provide these)
+    const bodyText = typeof req.bodyText === 'string' ? req.bodyText : undefined;
+    const bodyJson = typeof req.bodyJson !== 'undefined' ? req.bodyJson : undefined;
+
+    log('Body presence check - typeof req.body:', typeof req.body);
+    log('Body presence check - typeof req.bodyText:', typeof req.bodyText);
+    log('Body presence check - has bodyJson:', Boolean(bodyJson));
+
+    // Step 1: Normalize to object
+    try {
+      if (typeof payload === 'string') {
+        if (payload.trim() !== '') {
+          payload = JSON.parse(payload);
+          log('✓ Step 1: Parsed req.body string to object');
+        } else if (bodyText && bodyText.trim() !== '') {
+          payload = JSON.parse(bodyText);
+          log('✓ Step 1: Parsed req.bodyText to object');
+        } else if (bodyJson) {
+          payload = bodyJson;
+          log('✓ Step 1: Using req.bodyJson object');
+        } else {
+          // Don't fail yet; allow step 2 to attempt wrapped forms
+          log('⚠ Step 1: Empty raw body string; proceeding with empty payload to check wrapped forms');
+          payload = {};
+        }
+      } else if (payload && typeof payload === 'object') {
+        log('✓ Step 1: req.body is already an object');
+      } else if (bodyJson) {
+        payload = bodyJson;
+        log('✓ Step 1: Using req.bodyJson fallback');
+      } else if (bodyText && bodyText.trim() !== '') {
+        payload = JSON.parse(bodyText);
+        log('✓ Step 1: Parsed req.bodyText fallback');
+      } else {
+        log('⚠ Step 1: No usable body found; initializing empty payload');
+        payload = {};
+      }
+    } catch (parseError) {
+      error('✗ Step 1: Failed to parse request body');
+      return res.json(
+        { error: 'Invalid JSON in request body' },
+        400,
+        { 'Access-Control-Allow-Origin': '*' }
+      );
+    }
 
     // Step 2: Extract input from payload
     let input;

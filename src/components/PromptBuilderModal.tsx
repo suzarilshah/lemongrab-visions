@@ -95,40 +95,62 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
       };
       console.log("Sending payload to Appwrite function:", payload);
 
-      // Use Appwrite SDK to create execution
-      const execution = await functions.createExecution(
-        'generate-video-prompt',
-        JSON.stringify(payload),
-        false // async = false to wait for result
-      );
+      // Prefer Appwrite SDK
+      let execution;
+      try {
+        execution = await functions.createExecution(
+          'generate-video-prompt',
+          JSON.stringify(payload),
+          false // wait for result
+        );
+        console.log("Appwrite execution response (SDK):", execution);
+      } catch (sdkErr) {
+        console.warn("SDK execution failed, falling back to REST:", sdkErr);
+      }
 
-      console.log("Appwrite execution response:", execution);
-      
-      if (execution.status === "completed") {
-        if (execution.responseBody) {
+      const parseExecution = (exec: any) => {
+        if (exec?.status === "completed" && exec.responseBody) {
           try {
-            const result = JSON.parse(execution.responseBody);
+            const result = JSON.parse(exec.responseBody);
             console.log("Parsed response body:", result);
             if (result.prompt) {
               setGeneratedPrompt(result.prompt);
               toast.success("Prompt generated successfully!");
-            } else if (result.error) {
-              throw new Error(result.error);
-            } else {
-              throw new Error("No prompt in response");
+              return true;
             }
+            if (result.error) throw new Error(result.error);
+            throw new Error("No prompt in response");
           } catch (parseError: any) {
-            console.error("Failed to parse response body:", execution.responseBody);
+            console.error("Failed to parse response body:", exec.responseBody);
             throw new Error(`Invalid response format: ${parseError.message}`);
           }
-        } else {
-          throw new Error("No response body from function");
         }
-      } else if (execution.status === "failed") {
-        const errorMsg = execution.responseBody ? (() => { try { return JSON.parse(execution.responseBody).error } catch { return execution.responseBody } })() : "Function execution failed";
-        throw new Error(errorMsg);
-      } else {
-        throw new Error(`Unexpected status: ${execution.status}`);
+        if (exec?.status === "failed") {
+          const msg = exec.responseBody ? (() => { try { return JSON.parse(exec.responseBody).error } catch { return exec.responseBody } })() : "Function execution failed";
+          throw new Error(msg);
+        }
+        throw new Error(`Unexpected status: ${exec?.status}`);
+      };
+
+      try {
+        if (execution) parseExecution(execution);
+        else throw new Error("SDK execution not available");
+      } catch (e: any) {
+        // If body was empty or invalid, try REST with credentials to ensure cookies are sent
+        console.warn("Primary execution parse failed, trying REST fallback:", e?.message);
+        const response = await fetch("https://syd.cloud.appwrite.io/v1/functions/generate-video-prompt/executions", {
+          method: "POST",
+          mode: "cors",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Appwrite-Project": "lemongrab",
+          },
+          body: JSON.stringify({ data: JSON.stringify(payload) }),
+        });
+        const data = await response.json();
+        console.log("Appwrite execution response (REST):", data);
+        parseExecution(data);
       }
     } catch (error: any) {
       console.error("Error generating prompt:", error);
