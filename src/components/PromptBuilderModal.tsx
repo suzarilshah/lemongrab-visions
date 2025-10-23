@@ -154,7 +154,11 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
       }
     } catch (error: any) {
       console.error("Error generating prompt:", error);
-      toast.error(error.message || "Failed to generate prompt");
+      const errorMsg = error.message || "Failed to generate prompt";
+      const userFriendlyMsg = errorMsg.includes("Empty request body") || errorMsg.includes("Invalid JSON")
+        ? "Could not send your prompt data. Please try again."
+        : errorMsg;
+      toast.error(userFriendlyMsg);
     } finally {
       setIsGenerating(false);
     }

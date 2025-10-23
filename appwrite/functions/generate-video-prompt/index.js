@@ -1,105 +1,101 @@
 export default async ({ req, res, log, error }) => {
   // Handle CORS
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  };
+
   if (req.method === 'OPTIONS') {
-    return res.json({ ok: true }, 200, {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-Appwrite-Project',
-    });
+    return res.send('', 200, corsHeaders);
   }
 
-  try {
-    // Comprehensive logging for debugging
-    log('=== DEBUGGING REQUEST ===');
-    log('Request method:', req.method);
-    log('Request body type:', typeof req.body);
-    log('Request body:', JSON.stringify(req.body));
-    
-    // Parse the request body robustly across runtimes
-    let payload = req.body;
-
-    // Prefer explicit bodyText/bodyJson if available (Appwrite may redact body in logs but still provide these)
-    const bodyText = typeof req.bodyText === 'string' ? req.bodyText : undefined;
-    const bodyJson = typeof req.bodyJson !== 'undefined' ? req.bodyJson : undefined;
-
-    log('Body presence check - typeof req.body:', typeof req.body);
-    log('Body presence check - typeof req.bodyText:', typeof req.bodyText);
-    log('Body presence check - has bodyJson:', Boolean(bodyJson));
-
-    // Step 1: Normalize to object
+  // Safe JSON parser helper
+  const safeParse = (str) => {
     try {
-      if (typeof payload === 'string') {
-        if (payload.trim() !== '') {
-          payload = JSON.parse(payload);
-          log('✓ Step 1: Parsed req.body string to object');
-        } else if (bodyText && bodyText.trim() !== '') {
-          payload = JSON.parse(bodyText);
-          log('✓ Step 1: Parsed req.bodyText to object');
-        } else if (bodyJson) {
-          payload = bodyJson;
-          log('✓ Step 1: Using req.bodyJson object');
-        } else {
-          // Don't fail yet; allow step 2 to attempt wrapped forms
-          log('⚠ Step 1: Empty raw body string; proceeding with empty payload to check wrapped forms');
-          payload = {};
-        }
-      } else if (payload && typeof payload === 'object') {
-        log('✓ Step 1: req.body is already an object');
-      } else if (bodyJson) {
-        payload = bodyJson;
-        log('✓ Step 1: Using req.bodyJson fallback');
-      } else if (bodyText && bodyText.trim() !== '') {
-        payload = JSON.parse(bodyText);
-        log('✓ Step 1: Parsed req.bodyText fallback');
-      } else {
-        log('⚠ Step 1: No usable body found; initializing empty payload');
-        payload = {};
-      }
-    } catch (parseError) {
-      error('✗ Step 1: Failed to parse request body');
-      return res.json(
-        { error: 'Invalid JSON in request body' },
-        400,
-        { 'Access-Control-Allow-Origin': '*' }
-      );
+      return JSON.parse(str);
+    } catch {
+      return undefined;
     }
+  };
 
-    // Step 2: Extract input from payload
-    let input;
+  try {
+    log('=== Starting generate-video-prompt function ===');
     
-    // Check if payload has a 'data' field (Appwrite may wrap it)
-    if (payload && typeof payload === 'object' && payload.data !== undefined) {
-      log('✓ Found "data" field in payload');
-      log('Data field type:', typeof payload.data);
-      
-      // If data is a string, parse it
+    // CRITICAL: NEVER access req.bodyJson directly - it triggers JSON.parse on empty strings and causes 500 errors
+    // Instead, safely parse req.body and req.bodyText manually
+    
+    const rawBody = req.body;
+    const bodyText = typeof req.bodyText === 'string' ? req.bodyText : '';
+    
+    log(`req.body typeof: ${typeof rawBody}; ${typeof rawBody === 'string' ? 'length: ' + rawBody.length : 'is object'}`);
+    log(`req.bodyText length: ${bodyText.length}`);
+    
+    let payload = {};
+    
+    // Parse the request body safely
+    if (rawBody && typeof rawBody === 'object') {
+      log('✓ Step 1: req.body is already an object');
+      payload = rawBody;
+    } else if (typeof rawBody === 'string' && rawBody.trim()) {
+      log('✓ Step 1: Parsing req.body string');
+      const parsed = safeParse(rawBody);
+      if (!parsed) {
+        log('✗ Step 1: Invalid JSON in req.body');
+        return res.json({ error: 'Invalid JSON in request body' }, 400, corsHeaders);
+      }
+      payload = parsed;
+    } else if (bodyText.trim()) {
+      log('✓ Step 1: Parsing req.bodyText');
+      const parsed = safeParse(bodyText);
+      if (!parsed) {
+        log('✗ Step 1: Invalid JSON in req.bodyText');
+        return res.json({ error: 'Invalid JSON in request body' }, 400, corsHeaders);
+      }
+      payload = parsed;
+    } else {
+      log('✗ Step 1: No usable body found');
+      return res.json({ 
+        error: 'Empty request body. When using /executions, send { data: JSON.stringify(payload) }.' 
+      }, 400, corsHeaders);
+    }
+    
+    log(`Payload keys: ${Object.keys(payload).join(', ')}`);
+    
+    // Handle Appwrite SDK execution format (payload.data field contains the actual data)
+    let input = {};
+    if (payload && typeof payload === 'object' && 'data' in payload) {
+      log('✓ Step 2: Found payload.data field');
       if (typeof payload.data === 'string') {
-        try {
-          input = JSON.parse(payload.data);
-          log('✓ Step 2: Parsed data string to object');
-        } catch (e) {
-          error('✗ Step 2: Failed to parse payload.data as JSON');
-          error('payload.data was:', payload.data);
-          return res.json(
-            { error: 'Invalid JSON in data field', received: payload.data },
-            400,
-            { 'Access-Control-Allow-Origin': '*' }
-          );
+        if (!payload.data.trim()) {
+          log('✗ Step 2: payload.data is empty string');
+          return res.json({ error: 'Empty data string' }, 400, corsHeaders);
         }
-      } else {
-        // data is already an object
+        log('✓ Step 2: Parsing payload.data string');
+        const parsed = safeParse(payload.data);
+        if (!parsed) {
+          log('✗ Step 2: Invalid JSON in payload.data');
+          return res.json({ error: 'Invalid JSON in data field' }, 400, corsHeaders);
+        }
+        input = parsed;
+      } else if (payload.data && typeof payload.data === 'object') {
+        log('✓ Step 2: payload.data is already an object');
         input = payload.data;
-        log('✓ Step 2: Data field is already an object');
+      } else {
+        log('✗ Step 2: payload.data is neither string nor object');
+        input = {};
       }
     } else {
-      // No data field, use payload directly
+      log('✓ Step 2: No data field, using payload directly');
       input = payload;
-      log('✓ Step 2: Using payload directly (no data field)');
+    }
+    
+    log(`Input keys: ${Object.keys(input).join(', ')}`);
+    
+    if (!input || Object.keys(input).length === 0) {
+      log('✗ Step 2: Input is empty after parsing');
+      return res.json({ error: 'Empty request body' }, 400, corsHeaders);
     }
 
-    log('Step 2 complete - Input type:', typeof input);
-    log('Step 2 complete - Input keys:', Object.keys(input || {}));
-    log('Step 2 complete - Final input:', JSON.stringify(input));
 
     // Extract fields with defaults
     const {
@@ -122,7 +118,7 @@ export default async ({ req, res, log, error }) => {
       return res.json(
         { error: 'Subject and Action are required fields' },
         400,
-        { 'Access-Control-Allow-Origin': '*' }
+        corsHeaders
       );
     }
 
@@ -194,7 +190,7 @@ Now generate the prompt based on the user inputs provided above.`;
       return res.json(
         { error: `GPT-5 API error: ${response.status}` },
         500,
-        { 'Access-Control-Allow-Origin': '*' }
+        corsHeaders
       );
     }
 
@@ -205,7 +201,7 @@ Now generate the prompt based on the user inputs provided above.`;
       return res.json(
         { error: 'No prompt generated' },
         500,
-        { 'Access-Control-Allow-Origin': '*' }
+        corsHeaders
       );
     }
 
@@ -214,14 +210,14 @@ Now generate the prompt based on the user inputs provided above.`;
     return res.json(
       { prompt: generatedPrompt },
       200,
-      { 'Access-Control-Allow-Origin': '*' }
+      corsHeaders
     );
   } catch (err) {
     error('Error in generate-video-prompt function:', err);
     return res.json(
       { error: err.message || 'Internal server error' },
       500,
-      { 'Access-Control-Allow-Origin': '*' }
+      corsHeaders
     );
   }
 };
