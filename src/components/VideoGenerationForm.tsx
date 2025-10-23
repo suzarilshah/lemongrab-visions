@@ -47,6 +47,12 @@ const SORA2_RESOLUTIONS = [
   { value: "1920x1080", label: "1920x1080 (Landscape)" },
 ];
 
+// Sora 2 Image-to-Video only supports these two resolutions
+const SORA2_IMAGE_TO_VIDEO_RESOLUTIONS = [
+  { value: "1280x720", label: "1280x720 (Landscape)" },
+  { value: "720x1280", label: "720x1280 (Portrait)" },
+];
+
 const SORA2_DURATIONS = [
   { value: "4", label: "4 seconds" },
   { value: "8", label: "8 seconds" },
@@ -200,13 +206,23 @@ export default function VideoGenerationForm({
                   <SelectValue placeholder="Select resolution" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(soraVersion === "sora-2" ? SORA2_RESOLUTIONS : RESOLUTIONS).map((res) => (
+                  {(soraVersion === "sora-2" && mode === "image-to-video" 
+                    ? SORA2_IMAGE_TO_VIDEO_RESOLUTIONS 
+                    : soraVersion === "sora-2" 
+                    ? SORA2_RESOLUTIONS 
+                    : RESOLUTIONS
+                  ).map((res) => (
                     <SelectItem key={res.value} value={res.value}>
                       {res.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {soraVersion === "sora-2" && mode === "image-to-video" && (
+                <p className="text-xs text-muted-foreground">
+                  Image-to-video only supports 1280x720 (landscape) or 720x1280 (portrait). Your image will be automatically resized to match.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

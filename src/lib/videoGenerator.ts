@@ -13,6 +13,38 @@ interface VideoGenerationParams {
   remixVideoId?: string;
 }
 
+// Resize image to match the requested dimensions
+async function resizeImage(file: File, targetWidth: number, targetHeight: number): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+
+    if (!ctx) {
+      reject(new Error('Could not get canvas context'));
+      return;
+    }
+
+    img.onload = () => {
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+      
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const resizedFile = new File([blob], file.name, { type: file.type });
+          resolve(resizedFile);
+        } else {
+          reject(new Error('Failed to create resized image blob'));
+        }
+      }, file.type);
+    };
+
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 interface VideoJob {
   id: string;
   status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -65,7 +97,12 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
     formData.append('seconds', duration.toString());
     
     if (inputReference) {
-      formData.append('input_reference', inputReference);
+      // Resize the image to match the requested dimensions
+      onProgress?.("Resizing image to match video dimensions...");
+      const targetWidth = parseInt(width);
+      const targetHeight = parseInt(height);
+      const resizedImage = await resizeImage(inputReference, targetWidth, targetHeight);
+      formData.append('input_reference', resizedImage);
     }
     
     // For Sora 2, remix_video_id is in the URL, not the body
