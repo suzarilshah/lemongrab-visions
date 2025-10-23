@@ -80,7 +80,8 @@ export default function Dashboard() {
   };
 
   const loadVideos = async () => {
-    const videoList = await listVideosFromAppwrite();
+    // Fetch only the latest 6 videos
+    const videoList = await listVideosFromAppwrite(6);
     setVideos(videoList);
   };
 

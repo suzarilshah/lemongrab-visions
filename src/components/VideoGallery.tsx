@@ -102,15 +102,18 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {videos.map((video) => (
-            <Card key={video.id} className="glass border-primary/20 overflow-hidden">
+            <Card key={video.id} className="glass border-primary/20 overflow-hidden group hover:border-primary/40 transition-all">
               <CardContent className="p-0">
-                <video
-                  src={video.url}
-                  controls
-                  className="w-full aspect-video bg-black"
-                />
+                <div className="relative aspect-video bg-black">
+                  <video
+                    src={video.url}
+                    controls
+                    preload="metadata"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
                 <div className="p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <p className="text-sm line-clamp-2 flex-1">{video.prompt}</p>

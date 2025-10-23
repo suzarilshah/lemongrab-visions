@@ -76,9 +76,9 @@ export async function uploadVideoToAppwrite(
   }
 }
 
-export async function listVideosFromAppwrite(): Promise<VideoMetadata[]> {
+export async function listVideosFromAppwrite(limit: number = 100): Promise<VideoMetadata[]> {
   try {
-    console.log("[Appwrite] Fetching video list from bucket:", BUCKET_ID);
+    console.log(`[Appwrite] Fetching latest ${limit} videos from bucket:`, BUCKET_ID);
     const response = await storage.listFiles(BUCKET_ID);
     console.log("[Appwrite] Retrieved", response.files.length, "videos");
     
@@ -86,7 +86,7 @@ export async function listVideosFromAppwrite(): Promise<VideoMetadata[]> {
     const stored = localStorage.getItem("lemongrab_video_metadata");
     const metadataMap: Record<string, VideoMetadata> = stored ? JSON.parse(stored) : {};
 
-    return response.files.map((file) => {
+    const videos = response.files.map((file) => {
       const metadata = metadataMap[file.$id];
       return metadata || {
         id: file.$id,
@@ -99,6 +99,11 @@ export async function listVideosFromAppwrite(): Promise<VideoMetadata[]> {
         soraVersion: "sora-1",
       };
     });
+    
+    // Sort by timestamp descending (newest first) and limit
+    return videos
+      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+      .slice(0, limit);
   } catch (error: any) {
     console.error("[Appwrite] List error details:", {
       error,

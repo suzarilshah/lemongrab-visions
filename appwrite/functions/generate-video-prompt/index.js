@@ -9,36 +9,51 @@ export default async ({ req, res, log, error }) => {
   }
 
   try {
-    // Parse the request body and normalize Appwrite Execution payloads
-    let payload;
-    try {
-      payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    } catch (parseError) {
-      log('Failed to parse request body:', req.body);
-      return res.json(
-        { error: 'Invalid JSON in request body' },
-        400,
-        { 'Access-Control-Allow-Origin': '*' }
-      );
-    }
-
-    // Appwrite HTTP executions send user payload under `data` (often as a JSON string)
-    let input = payload;
-    try {
-      if (payload && typeof payload === 'object' && 'data' in payload) {
-        input = typeof payload.data === 'string' ? JSON.parse(payload.data) : payload.data;
+    // Parse the request body - Appwrite may send it as string or object
+    let payload = req.body;
+    
+    // Step 1: Parse if string
+    if (typeof payload === 'string') {
+      try {
+        payload = JSON.parse(payload);
+        log('Parsed string body to object');
+      } catch (parseError) {
+        log('Failed to parse request body string:', payload);
+        return res.json(
+          { error: 'Invalid JSON in request body' },
+          400,
+          { 'Access-Control-Allow-Origin': '*' }
+        );
       }
-    } catch (e) {
-      log('Failed to parse payload.data as JSON:', payload?.data);
-      return res.json(
-        { error: 'Invalid JSON in data field' },
-        400,
-        { 'Access-Control-Allow-Origin': '*' }
-      );
     }
 
-    log('Received payload:', JSON.stringify(payload));
-    log('Normalized input:', JSON.stringify(input));
+    log('Step 1 - Payload after initial parse:', JSON.stringify(payload));
+
+    // Step 2: Extract from 'data' field if present
+    let input = payload;
+    if (payload && typeof payload === 'object' && payload.data !== undefined) {
+      log('Found data field, type:', typeof payload.data);
+      
+      // If data is a string, parse it
+      if (typeof payload.data === 'string') {
+        try {
+          input = JSON.parse(payload.data);
+          log('Parsed data string to object');
+        } catch (e) {
+          log('Failed to parse payload.data as JSON:', payload.data);
+          return res.json(
+            { error: 'Invalid JSON in data field' },
+            400,
+            { 'Access-Control-Allow-Origin': '*' }
+          );
+        }
+      } else {
+        // data is already an object
+        input = payload.data;
+      }
+    }
+
+    log('Step 2 - Final input object:', JSON.stringify(input));
 
     const {
       subject = '',
