@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
+import { functions } from "@/lib/appwrite";
 
 interface PromptBuilderModalProps {
   open: boolean;
@@ -92,25 +93,21 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
         style,
         details,
       };
-      console.log("Sending payload to Appwrite function (wrapped in data):", payload);
+      console.log("Sending payload to Appwrite function:", payload);
 
-      const response = await fetch("https://syd.cloud.appwrite.io/v1/functions/generate-video-prompt/executions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Appwrite-Project": "lemongrab",
-        },
-        // Appwrite's executions API expects a top-level { data: string }
-        body: JSON.stringify({ data: JSON.stringify(payload) }),
-      });
+      // Use Appwrite SDK to create execution
+      const execution = await functions.createExecution(
+        'generate-video-prompt',
+        JSON.stringify(payload),
+        false // async = false to wait for result
+      );
 
-      const data = await response.json();
-      console.log("Appwrite execution response:", data);
+      console.log("Appwrite execution response:", execution);
       
-      if (data.status === "completed") {
-        if (data.responseBody) {
+      if (execution.status === "completed") {
+        if (execution.responseBody) {
           try {
-            const result = JSON.parse(data.responseBody);
+            const result = JSON.parse(execution.responseBody);
             console.log("Parsed response body:", result);
             if (result.prompt) {
               setGeneratedPrompt(result.prompt);
@@ -121,17 +118,17 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
               throw new Error("No prompt in response");
             }
           } catch (parseError: any) {
-            console.error("Failed to parse response body:", data.responseBody);
+            console.error("Failed to parse response body:", execution.responseBody);
             throw new Error(`Invalid response format: ${parseError.message}`);
           }
         } else {
           throw new Error("No response body from function");
         }
-      } else if (data.status === "failed") {
-        const errorMsg = data.responseBody ? (() => { try { return JSON.parse(data.responseBody).error } catch { return data.responseBody } })() : "Function execution failed";
+      } else if (execution.status === "failed") {
+        const errorMsg = execution.responseBody ? (() => { try { return JSON.parse(execution.responseBody).error } catch { return execution.responseBody } })() : "Function execution failed";
         throw new Error(errorMsg);
       } else {
-        throw new Error(`Unexpected status: ${data.status}`);
+        throw new Error(`Unexpected status: ${execution.status}`);
       }
     } catch (error: any) {
       console.error("Error generating prompt:", error);
