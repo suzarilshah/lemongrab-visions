@@ -22,11 +22,6 @@ export default function Settings() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [activeProfileId, setActiveProfileId] = useState<string>("");
   const [profileName, setProfileName] = useState<string>("");
-  const [apiKey, setApiKey] = useState("");
-  const [deployment, setDeployment] = useState("");
-  const [soraVersion, setSoraVersion] = useState("sora-1");
-  const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
   
   // Password reset state
   const [currentPassword, setCurrentPassword] = useState("");
@@ -73,22 +68,6 @@ export default function Settings() {
       setSoraVersion(active.soraVersion);
     }
   };
-    // Load settings from localStorage
-    const stored = localStorage.getItem("lemongrab_settings");
-    if (stored) {
-      const settings = JSON.parse(stored);
-      setEndpoint(settings.endpoint || "");
-      setApiKey(settings.apiKey || "");
-      setDeployment(settings.deployment || "");
-      setSoraVersion(settings.soraVersion || "sora-1");
-    } else {
-      // Set default values
-      setEndpoint("https://suzar-mh225uaw-eastus2.cognitiveservices.azure.com/openai/v1/video/generations/jobs?api-version=preview");
-      setApiKey("FpyNVx3HU6qv92ZTypcSBI250cmgYcRT8wPglshXt5plqnuz8Z4NJQQJ99BJACHYHv6XJ3w3AAAAACOGSaAO");
-      setDeployment("sora");
-      setSoraVersion("sora-1");
-    }
-  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -113,19 +92,6 @@ export default function Settings() {
         setActiveProfileId(next.id);
         setProfiles(getProfiles());
       }
-      toast.success("Settings saved successfully!");
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save settings");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-    e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const settings = { endpoint, apiKey, deployment, soraVersion };
-      localStorage.setItem("lemongrab_settings", JSON.stringify(settings));
       toast.success("Settings saved successfully!");
     } catch (error: any) {
       toast.error(error.message || "Failed to save settings");
@@ -267,6 +233,8 @@ export default function Settings() {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="bg-background border-border/50">
           <CardHeader>
             <CardTitle className="text-2xl">Password Reset</CardTitle>
             <CardDescription>

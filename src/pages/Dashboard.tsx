@@ -58,12 +58,6 @@ export default function Dashboard() {
       setActiveProfileName("Default");
     }
   };
-    const stored = localStorage.getItem("lemongrab_settings");
-    if (stored) {
-      const settings = JSON.parse(stored);
-      setSoraVersion(settings.soraVersion || "sora-1");
-    }
-  };
 
   const checkAuth = async () => {
     try {
@@ -225,15 +219,6 @@ export default function Dashboard() {
         estimatedCost,
         videoId: result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined,
         profileName: activeProfileName || (getActiveProfile()?.name || "Default"),
-      });
-        prompt: params.prompt,
-        soraModel: soraVersion,
-        duration: params.duration,
-        resolution: `${params.width}x${params.height}`,
-        variants: parseInt(params.variants),
-        generationMode,
-        estimatedCost,
-        videoId: result.videoId,
       });
       
       setProgress(100);
