@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Settings, LogOut, Moon, Sun, Images } from "lucide-react";
+import { Settings, LogOut, Moon, Sun, Images, DollarSign } from "lucide-react";
 import logo from "@/assets/logo.svg";
 import { generateVideo } from "@/lib/videoGenerator";
 import { 
@@ -19,6 +19,9 @@ import VideoGallery from "@/components/VideoGallery";
 import ApiConsole from "@/components/ApiConsole";
 import SoraLimitationsDialog from "@/components/SoraLimitationsDialog";
 import Sora2FeaturesDialog from "@/components/Sora2FeaturesDialog";
+import CostTracking from "@/components/CostTracking";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { saveGenerationRecord, calculateCost } from "@/lib/costTracking";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -31,6 +34,7 @@ export default function Dashboard() {
   const [directVideoUrl, setDirectVideoUrl] = useState<string | null>(null);
   const [apiLogs, setApiLogs] = useState<any[]>([]);
   const [soraVersion, setSoraVersion] = useState<string>("sora-1");
+  const [activeTab, setActiveTab] = useState<string>("generate");
 
   useEffect(() => {
     checkAuth();
@@ -108,7 +112,7 @@ export default function Dashboard() {
     setProgressMessage("Starting video generation...");
 
     try {
-      const videoBlob = await generateVideo({
+      const result = await generateVideo({
         prompt: params.prompt,
         height: params.height,
         width: params.width,
@@ -155,7 +159,7 @@ export default function Dashboard() {
       setProgressMessage("Uploading to storage...");
 
       const metadata = await uploadVideoToAppwrite(
-        videoBlob,
+        result.blob,
         params.prompt,
         params.height,
         params.width,
@@ -165,6 +169,34 @@ export default function Dashboard() {
 
       saveVideoMetadata(metadata);
       await loadVideos();
+
+      // Determine generation mode
+      let generationMode = "text-to-video";
+      if (params.inputReference) {
+        generationMode = "image-to-video";
+      } else if (params.remixVideoId) {
+        generationMode = "video-to-video";
+      }
+
+      // Calculate and save cost tracking
+      const estimatedCost = calculateCost(
+        params.width,
+        params.height,
+        params.duration.toString(),
+        params.variants,
+        soraVersion
+      );
+
+      await saveGenerationRecord({
+        prompt: params.prompt,
+        soraModel: soraVersion,
+        duration: params.duration,
+        resolution: `${params.width}x${params.height}`,
+        variants: parseInt(params.variants),
+        generationMode,
+        estimatedCost,
+        videoId: result.videoId,
+      });
       
       setProgress(100);
       toast.success("🎉 Video generated successfully!");
@@ -252,21 +284,35 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid gap-6 w-full max-w-full overflow-hidden">
-          {/* Generator Form */}
-          <VideoGenerationForm
-            onGenerate={handleGenerate}
-            isGenerating={isGenerating}
-            progress={progress}
-            progressMessage={progressMessage}
-          />
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="glass border-primary/20 mb-6">
+            <TabsTrigger value="generate">Generate</TabsTrigger>
+            <TabsTrigger value="cost-tracking">
+              <DollarSign className="h-4 w-4 mr-2" />
+              Cost Tracking
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Video Gallery */}
-          <VideoGallery videos={videos} onDelete={handleDelete} directVideoUrl={directVideoUrl} />
+          <TabsContent value="generate" className="space-y-6">
+            {/* Generator Form */}
+            <VideoGenerationForm
+              onGenerate={handleGenerate}
+              isGenerating={isGenerating}
+              progress={progress}
+              progressMessage={progressMessage}
+            />
 
-          {/* API Console */}
-          <ApiConsole logs={apiLogs} onClear={() => setApiLogs([])} />
-        </div>
+            {/* Video Gallery */}
+            <VideoGallery videos={videos} onDelete={handleDelete} directVideoUrl={directVideoUrl} />
+
+            {/* API Console */}
+            <ApiConsole logs={apiLogs} onClear={() => setApiLogs([])} />
+          </TabsContent>
+
+          <TabsContent value="cost-tracking">
+            <CostTracking />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );

@@ -10,5 +10,6 @@ export const storage = new Storage(client);
 
 export const DATABASE_ID = 'lemongrab_db';
 export const SETTINGS_COLLECTION_ID = 'settings';
+export const GENERATIONS_COLLECTION_ID = 'video_generations';
 
 export { client };

@@ -9,6 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Play, Upload } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import PriceEstimator from "@/components/PriceEstimator";
+import { listVideos } from "@/lib/videoGenerator";
+import { toast } from "sonner";
 
 interface VideoGenerationFormProps {
   onGenerate: (params: {
@@ -74,10 +76,26 @@ export default function VideoGenerationForm({
   const [generateAudio, setGenerateAudio] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [availableVideos, setAvailableVideos] = useState<Array<{ id: string; status: string; model: string }>>([]);
 
   useEffect(() => {
     loadSoraVersion();
   }, []);
+
+  useEffect(() => {
+    if (soraVersion === "sora-2" && mode === "video-to-video") {
+      loadAvailableVideos();
+    }
+  }, [soraVersion, mode]);
+
+  const loadAvailableVideos = async () => {
+    const stored = localStorage.getItem("lemongrab_settings");
+    if (!stored) return;
+
+    const settings = JSON.parse(stored);
+    const videos = await listVideos(settings.endpoint, settings.apiKey);
+    setAvailableVideos(videos.filter(v => v.status === "completed"));
+  };
 
   const loadSoraVersion = () => {
     const stored = localStorage.getItem("lemongrab_settings");
@@ -164,18 +182,27 @@ export default function VideoGenerationForm({
 
         {soraVersion === "sora-2" && mode === "video-to-video" && (
           <div className="space-y-2">
-            <Label htmlFor="remixVideoId">Remix Video ID</Label>
-            <Input
-              id="remixVideoId"
-              type="text"
-              placeholder="e.g., video_..."
-              value={remixVideoId}
-              onChange={(e) => setRemixVideoId(e.target.value)}
-              className="glass border-primary/20"
-              disabled={isGenerating}
-            />
+            <Label htmlFor="remixVideoId">Select Video to Remix</Label>
+            <Select value={remixVideoId} onValueChange={setRemixVideoId}>
+              <SelectTrigger id="remixVideoId" className="glass border-primary/20">
+                <SelectValue placeholder="Select a video" />
+              </SelectTrigger>
+              <SelectContent>
+                {availableVideos.length === 0 ? (
+                  <SelectItem value="no-videos" disabled>
+                    No videos available
+                  </SelectItem>
+                ) : (
+                  availableVideos.map((video, index) => (
+                    <SelectItem key={video.id} value={video.id}>
+                      {video.id} {index === 0 ? "(Latest)" : ""}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
-              Enter the ID of a previously completed video (e.g., video_...) to reuse structure, motion, and framing
+              Select a previously completed video to reuse its structure, motion, and framing
             </p>
           </div>
         )}
@@ -197,86 +224,89 @@ export default function VideoGenerationForm({
           </p>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[1fr_300px]">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="resolution">Resolution</Label>
-              <Select value={resolution} onValueChange={setResolution}>
-                <SelectTrigger id="resolution" className="glass border-primary/20">
-                  <SelectValue placeholder="Select resolution" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(soraVersion === "sora-2" && mode === "image-to-video" 
-                    ? SORA2_IMAGE_TO_VIDEO_RESOLUTIONS 
-                    : soraVersion === "sora-2" 
-                    ? SORA2_RESOLUTIONS 
-                    : RESOLUTIONS
-                  ).map((res) => (
-                    <SelectItem key={res.value} value={res.value}>
-                      {res.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {soraVersion === "sora-2" && mode === "image-to-video" && (
-                <p className="text-xs text-muted-foreground">
-                  Image-to-video only supports 1280x720 (landscape) or 720x1280 (portrait). Your image will be automatically resized to match.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="duration">Duration</Label>
-              {soraVersion === "sora-2" ? (
-                <Select value={duration} onValueChange={setDuration}>
-                  <SelectTrigger id="duration" className="glass border-primary/20">
-                    <SelectValue placeholder="Select duration" />
+        {/* Hide resolution and duration for video-to-video remix mode */}
+        {!(soraVersion === "sora-2" && mode === "video-to-video") && (
+          <div className="grid gap-4 md:grid-cols-[1fr_300px]">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="resolution">Resolution</Label>
+                <Select value={resolution} onValueChange={setResolution}>
+                  <SelectTrigger id="resolution" className="glass border-primary/20">
+                    <SelectValue placeholder="Select resolution" />
                   </SelectTrigger>
                   <SelectContent>
-                    {SORA2_DURATIONS.map((dur) => (
-                      <SelectItem key={dur.value} value={dur.value}>
-                        {dur.label}
+                    {(soraVersion === "sora-2" && mode === "image-to-video" 
+                      ? SORA2_IMAGE_TO_VIDEO_RESOLUTIONS 
+                      : soraVersion === "sora-2" 
+                      ? SORA2_RESOLUTIONS 
+                      : RESOLUTIONS
+                    ).map((res) => (
+                      <SelectItem key={res.value} value={res.value}>
+                        {res.label}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              ) : (
+                {soraVersion === "sora-2" && mode === "image-to-video" && (
+                  <p className="text-xs text-muted-foreground">
+                    Image-to-video only supports 1280x720 (landscape) or 720x1280 (portrait). Your image will be automatically resized to match.
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="duration">Duration</Label>
+                {soraVersion === "sora-2" ? (
+                  <Select value={duration} onValueChange={setDuration}>
+                    <SelectTrigger id="duration" className="glass border-primary/20">
+                      <SelectValue placeholder="Select duration" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {SORA2_DURATIONS.map((dur) => (
+                        <SelectItem key={dur.value} value={dur.value}>
+                          {dur.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="duration"
+                    type="number"
+                    value={duration}
+                    onChange={(e) => setDuration(e.target.value)}
+                    min="1"
+                    max="20"
+                    className="glass border-primary/20"
+                    disabled={isGenerating}
+                  />
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="variants">Variants</Label>
                 <Input
-                  id="duration"
+                  id="variants"
                   type="number"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
+                  value={variants}
+                  onChange={(e) => setVariants(e.target.value)}
                   min="1"
-                  max="20"
+                  max="4"
                   className="glass border-primary/20"
                   disabled={isGenerating}
                 />
-              )}
+              </div>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="variants">Variants</Label>
-              <Input
-                id="variants"
-                type="number"
-                value={variants}
-                onChange={(e) => setVariants(e.target.value)}
-                min="1"
-                max="4"
-                className="glass border-primary/20"
-                disabled={isGenerating}
-              />
-            </div>
+            
+            <PriceEstimator
+              width={width}
+              height={height}
+              duration={duration}
+              variants={variants}
+              soraVersion={soraVersion}
+            />
           </div>
-          
-          <PriceEstimator
-            width={width}
-            height={height}
-            duration={duration}
-            variants={variants}
-            soraVersion={soraVersion}
-          />
-        </div>
+        )}
 
         {isGenerating && (
           <div className="space-y-2">

@@ -52,7 +52,7 @@ interface VideoJob {
   error?: string;
 }
 
-export async function generateVideo(params: VideoGenerationParams): Promise<Blob> {
+export async function generateVideo(params: VideoGenerationParams): Promise<{ blob: Blob; videoId?: string }> {
   const { 
     prompt, 
     duration = 12, 
@@ -189,7 +189,8 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   onProgress?.("Job created. Waiting for processing...");
 
   // Poll for completion and get video
-  return pollJobStatus(jobId, endpoint, apiKey, onProgress, opLoc || undefined, isSora2);
+  const videoBlob = await pollJobStatus(jobId, endpoint, apiKey, onProgress, opLoc || undefined, isSora2);
+  return { blob: videoBlob, videoId: jobId };
 }
 
 async function pollJobStatus(
@@ -340,6 +341,34 @@ async function pollJobStatus(
 
   onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'timeout', time: Date.now() })}`);
   throw new Error('Video generation timed out after 15 minutes');
+}
+
+// Fetch list of videos from Azure API
+export async function listVideos(
+  endpoint: string,
+  apiKey: string,
+  limit: number = 20
+): Promise<Array<{ id: string; status: string; model: string }>> {
+  try {
+    const [baseUrl, queryParams] = endpoint.split('?');
+    const root = baseUrl.replace(/\/videos$/, '');
+    const listUrl = `${root}/videos${queryParams ? '?' + queryParams : ''}${queryParams ? '&' : '?'}limit=${limit}&order=desc`;
+
+    const response = await fetch(listUrl, {
+      headers: { 'api-key': apiKey },
+    });
+
+    if (!response.ok) {
+      console.error("Failed to fetch video list:", response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    return data.data || [];
+  } catch (error) {
+    console.error("Error fetching video list:", error);
+    return [];
+  }
 }
 
 // Legacy functions removed - using Appwrite storage now

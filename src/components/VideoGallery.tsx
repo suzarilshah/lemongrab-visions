@@ -126,10 +126,11 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
                         navigator.clipboard.writeText(video.id);
                         toast.success("Video ID copied to clipboard");
                       }}
-                      className="text-xs h-7 px-2"
+                      className="text-xs h-7 px-2 justify-start overflow-hidden"
+                      title={video.id}
                     >
-                      <Copy className="h-3 w-3 mr-1" />
-                      ID: {video.id.slice(0, 8)}...
+                      <Copy className="h-3 w-3 mr-1 flex-shrink-0" />
+                      <span className="truncate">{video.id}</span>
                     </Button>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
