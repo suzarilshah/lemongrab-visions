@@ -21,6 +21,15 @@ export default async ({ req, res, log, error }) => {
     // Step 1: Parse if body is a string
     if (typeof payload === 'string') {
       try {
+        if (payload.trim() === '') {
+          // When calling the Executions API without { data }, Appwrite forwards an empty string
+          error('✗ Step 1: Empty request body string received');
+          return res.json(
+            { error: 'Empty request body. When using /executions, send { data: JSON.stringify(payload) }.' },
+            400,
+            { 'Access-Control-Allow-Origin': '*' }
+          );
+        }
         payload = JSON.parse(payload);
         log('✓ Step 1: Parsed string body to object');
       } catch (parseError) {

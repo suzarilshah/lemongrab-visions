@@ -10,7 +10,6 @@ import {
   uploadVideoToAppwrite, 
   listVideosFromAppwrite, 
   deleteVideoFromAppwrite,
-  saveVideoMetadata,
   VideoMetadata
 } from "@/lib/appwriteStorage";
 import { useTheme } from "@/components/ThemeProvider";
@@ -189,10 +188,7 @@ export default function Dashboard() {
         // Ensure full video_ prefix is present
         result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined
       );
-
-      saveVideoMetadata(metadata);
       await loadVideos();
-
       // Determine generation mode
       let generationMode = "text-to-video";
       if (params.inputReference) {

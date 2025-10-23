@@ -1,5 +1,5 @@
 import { storage } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { ID, Query } from "appwrite";
 
 const BUCKET_ID = "68f8f4c20021c88b0a89";
 
@@ -76,45 +76,42 @@ export async function uploadVideoToAppwrite(
   }
 }
 
-export async function listVideosFromAppwrite(limit: number = 100): Promise<VideoMetadata[]> {
+export async function listVideosFromAppwrite(limit: number = 6): Promise<VideoMetadata[]> {
   try {
     console.log(`[Appwrite] Fetching latest ${limit} videos from bucket:`, BUCKET_ID);
-    const response = await storage.listFiles(BUCKET_ID);
-    console.log("[Appwrite] Retrieved", response.files.length, "videos");
-    
-    // Get metadata from localStorage (since Appwrite doesn't store custom metadata easily)
-    const stored = localStorage.getItem("lemongrab_video_metadata");
-    const metadataMap: Record<string, VideoMetadata> = stored ? JSON.parse(stored) : {};
+    // Use Appwrite queries to sort and limit at the API level
+    const response = await storage.listFiles(BUCKET_ID, [
+      Query.orderDesc('$createdAt'),
+      Query.limit(limit),
+    ]);
 
-    const videos = response.files.map((file) => {
-      const metadata = metadataMap[file.$id];
-      return metadata || {
-        id: file.$id,
-        url: `https://syd.cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID}/files/${file.$id}/view?project=lemongrab`,
-        prompt: "Unknown",
-        timestamp: file.$createdAt,
-        height: "720",
-        width: "1280",
-        duration: "12",
-        soraVersion: "sora-1",
-      };
-    });
-    
-    // Sort by timestamp descending (newest first) and limit
-    return videos
-      .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      .slice(0, limit);
+    console.log("[Appwrite] Retrieved", response.files.length, "videos");
+
+    // Map files to uniform metadata; we don't rely on localStorage anymore
+    const videos: VideoMetadata[] = response.files.map((file) => ({
+      id: file.$id,
+      url: `https://syd.cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID}/files/${file.$id}/view?project=lemongrab`,
+      prompt: (file.name || '').replace(/\.mp4$/i, '') || 'Untitled',
+      timestamp: file.$createdAt,
+      height: '720',
+      width: '1280',
+      duration: '12',
+      soraVersion: 'sora-1',
+    }));
+
+    // Already ordered desc (latest first). Return as-is.
+    return videos;
   } catch (error: any) {
     console.error("[Appwrite] List error details:", {
       error,
       message: error?.message,
       code: error?.code
     });
-    
+
     if (error?.message === "Failed to fetch" || error?.name === "TypeError") {
       console.error("[Appwrite] CORS Error: Add", window.location.origin, "to Appwrite Console");
     }
-    
+
     return [];
   }
 }
@@ -124,26 +121,18 @@ export async function deleteVideoFromAppwrite(fileId: string): Promise<void> {
     console.log("[Appwrite] Deleting video:", fileId);
     await storage.deleteFile(BUCKET_ID, fileId);
     console.log("[Appwrite] Video deleted successfully");
-    
-    // Remove from metadata
-    const stored = localStorage.getItem("lemongrab_video_metadata");
-    if (stored) {
-      const metadataMap: Record<string, VideoMetadata> = JSON.parse(stored);
-      delete metadataMap[fileId];
-      localStorage.setItem("lemongrab_video_metadata", JSON.stringify(metadataMap));
-    }
   } catch (error: any) {
     console.error("[Appwrite] Delete error details:", {
       error,
       message: error?.message,
       fileId
     });
-    
+
     if (error?.message === "Failed to fetch" || error?.name === "TypeError") {
       console.error("[Appwrite] CORS Error: Add", window.location.origin, "to Appwrite Console");
       throw new Error("CORS Error: Please add your domain to Appwrite CORS settings");
     }
-    
+
     throw new Error(`Failed to delete video: ${error?.message || "Unknown error"}`);
   }
 }

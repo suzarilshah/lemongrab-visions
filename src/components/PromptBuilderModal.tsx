@@ -81,7 +81,7 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
 
     setIsGenerating(true);
     try {
-      console.log("Sending payload to Appwrite function:", {
+      const payload = {
         subject,
         action,
         environment,
@@ -91,7 +91,8 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
         camera_movement: cameraMovement,
         style,
         details,
-      });
+      };
+      console.log("Sending payload to Appwrite function (wrapped in data):", payload);
 
       const response = await fetch("https://syd.cloud.appwrite.io/v1/functions/generate-video-prompt/executions", {
         method: "POST",
@@ -99,29 +100,18 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
           "Content-Type": "application/json",
           "X-Appwrite-Project": "lemongrab",
         },
-        body: JSON.stringify({
-          subject,
-          action,
-          environment,
-          lighting,
-          camera_shot: cameraShot,
-          camera_angle: cameraAngle,
-          camera_movement: cameraMovement,
-          style,
-          details,
-        }),
+        // Appwrite's executions API expects a top-level { data: string }
+        body: JSON.stringify({ data: JSON.stringify(payload) }),
       });
 
       const data = await response.json();
       console.log("Appwrite execution response:", data);
       
-      // Check for successful completion
       if (data.status === "completed") {
         if (data.responseBody) {
           try {
             const result = JSON.parse(data.responseBody);
             console.log("Parsed response body:", result);
-            
             if (result.prompt) {
               setGeneratedPrompt(result.prompt);
               toast.success("Prompt generated successfully!");
@@ -138,7 +128,7 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
           throw new Error("No response body from function");
         }
       } else if (data.status === "failed") {
-        const errorMsg = data.responseBody ? JSON.parse(data.responseBody).error : "Function execution failed";
+        const errorMsg = data.responseBody ? (() => { try { return JSON.parse(data.responseBody).error } catch { return data.responseBody } })() : "Function execution failed";
         throw new Error(errorMsg);
       } else {
         throw new Error(`Unexpected status: ${data.status}`);
