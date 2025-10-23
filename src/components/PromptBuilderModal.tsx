@@ -81,6 +81,18 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
 
     setIsGenerating(true);
     try {
+      console.log("Sending payload to Appwrite function:", {
+        subject,
+        action,
+        environment,
+        lighting,
+        camera_shot: cameraShot,
+        camera_angle: cameraAngle,
+        camera_movement: cameraMovement,
+        style,
+        details,
+      });
+
       const response = await fetch("https://syd.cloud.appwrite.io/v1/functions/generate-video-prompt/executions", {
         method: "POST",
         headers: {
@@ -88,32 +100,48 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
           "X-Appwrite-Project": "lemongrab",
         },
         body: JSON.stringify({
-          data: JSON.stringify({
-            subject,
-            action,
-            environment,
-            lighting,
-            camera_shot: cameraShot,
-            camera_angle: cameraAngle,
-            camera_movement: cameraMovement,
-            style,
-            details,
-          }),
+          subject,
+          action,
+          environment,
+          lighting,
+          camera_shot: cameraShot,
+          camera_angle: cameraAngle,
+          camera_movement: cameraMovement,
+          style,
+          details,
         }),
       });
 
       const data = await response.json();
+      console.log("Appwrite execution response:", data);
       
-      if (data.status === "completed" && data.responseBody) {
-        const result = JSON.parse(data.responseBody);
-        if (result.prompt) {
-          setGeneratedPrompt(result.prompt);
-          toast.success("Prompt generated successfully!");
+      // Check for successful completion
+      if (data.status === "completed") {
+        if (data.responseBody) {
+          try {
+            const result = JSON.parse(data.responseBody);
+            console.log("Parsed response body:", result);
+            
+            if (result.prompt) {
+              setGeneratedPrompt(result.prompt);
+              toast.success("Prompt generated successfully!");
+            } else if (result.error) {
+              throw new Error(result.error);
+            } else {
+              throw new Error("No prompt in response");
+            }
+          } catch (parseError: any) {
+            console.error("Failed to parse response body:", data.responseBody);
+            throw new Error(`Invalid response format: ${parseError.message}`);
+          }
         } else {
-          throw new Error(result.error || "Failed to generate prompt");
+          throw new Error("No response body from function");
         }
+      } else if (data.status === "failed") {
+        const errorMsg = data.responseBody ? JSON.parse(data.responseBody).error : "Function execution failed";
+        throw new Error(errorMsg);
       } else {
-        throw new Error("Function execution failed");
+        throw new Error(`Unexpected status: ${data.status}`);
       }
     } catch (error: any) {
       console.error("Error generating prompt:", error);

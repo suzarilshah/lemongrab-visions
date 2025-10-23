@@ -9,40 +9,53 @@ export default async ({ req, res, log, error }) => {
   }
 
   try {
-    // Parse the request body - Appwrite may send it as string or object
+    // Comprehensive logging for debugging
+    log('=== DEBUGGING REQUEST ===');
+    log('Request method:', req.method);
+    log('Request body type:', typeof req.body);
+    log('Request body:', JSON.stringify(req.body));
+    
+    // Parse the request body
     let payload = req.body;
     
-    // Step 1: Parse if string
+    // Step 1: Parse if body is a string
     if (typeof payload === 'string') {
       try {
         payload = JSON.parse(payload);
-        log('Parsed string body to object');
+        log('✓ Step 1: Parsed string body to object');
       } catch (parseError) {
-        log('Failed to parse request body string:', payload);
+        error('✗ Step 1: Failed to parse request body string');
+        error('Raw body was:', payload);
         return res.json(
-          { error: 'Invalid JSON in request body' },
+          { error: 'Invalid JSON in request body', received: payload },
           400,
           { 'Access-Control-Allow-Origin': '*' }
         );
       }
     }
 
-    log('Step 1 - Payload after initial parse:', JSON.stringify(payload));
+    log('Step 1 complete - Payload type:', typeof payload);
+    log('Step 1 complete - Payload keys:', Object.keys(payload || {}));
+    log('Step 1 complete - Payload:', JSON.stringify(payload));
 
-    // Step 2: Extract from 'data' field if present
-    let input = payload;
+    // Step 2: Extract input from payload
+    let input;
+    
+    // Check if payload has a 'data' field (Appwrite may wrap it)
     if (payload && typeof payload === 'object' && payload.data !== undefined) {
-      log('Found data field, type:', typeof payload.data);
+      log('✓ Found "data" field in payload');
+      log('Data field type:', typeof payload.data);
       
       // If data is a string, parse it
       if (typeof payload.data === 'string') {
         try {
           input = JSON.parse(payload.data);
-          log('Parsed data string to object');
+          log('✓ Step 2: Parsed data string to object');
         } catch (e) {
-          log('Failed to parse payload.data as JSON:', payload.data);
+          error('✗ Step 2: Failed to parse payload.data as JSON');
+          error('payload.data was:', payload.data);
           return res.json(
-            { error: 'Invalid JSON in data field' },
+            { error: 'Invalid JSON in data field', received: payload.data },
             400,
             { 'Access-Control-Allow-Origin': '*' }
           );
@@ -50,11 +63,19 @@ export default async ({ req, res, log, error }) => {
       } else {
         // data is already an object
         input = payload.data;
+        log('✓ Step 2: Data field is already an object');
       }
+    } else {
+      // No data field, use payload directly
+      input = payload;
+      log('✓ Step 2: Using payload directly (no data field)');
     }
 
-    log('Step 2 - Final input object:', JSON.stringify(input));
+    log('Step 2 complete - Input type:', typeof input);
+    log('Step 2 complete - Input keys:', Object.keys(input || {}));
+    log('Step 2 complete - Final input:', JSON.stringify(input));
 
+    // Extract fields with defaults
     const {
       subject = '',
       action = '',
@@ -65,7 +86,7 @@ export default async ({ req, res, log, error }) => {
       camera_movement = '',
       style = '',
       details = '',
-    } = input;
+    } = input || {};
 
     log('Extracted fields - subject:', subject, 'action:', action);
 
