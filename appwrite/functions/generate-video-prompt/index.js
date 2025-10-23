@@ -9,7 +9,21 @@ export default async ({ req, res, log, error }) => {
   }
 
   try {
-    const payload = JSON.parse(req.body || '{}');
+    // Parse the request body
+    let payload;
+    try {
+      payload = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
+    } catch (parseError) {
+      log('Failed to parse request body:', req.body);
+      return res.json(
+        { error: 'Invalid JSON in request body' },
+        400,
+        { 'Access-Control-Allow-Origin': '*' }
+      );
+    }
+
+    log('Received payload:', JSON.stringify(payload));
+
     const {
       subject = '',
       action = '',
@@ -22,10 +36,11 @@ export default async ({ req, res, log, error }) => {
       details = '',
     } = payload;
 
-    log('Generating video prompt with inputs:', payload);
+    log('Extracted fields - subject:', subject, 'action:', action);
 
     // Validate required fields
     if (!subject || !action) {
+      log('Validation failed - subject:', subject, 'action:', action);
       return res.json(
         { error: 'Subject and Action are required fields' },
         400,

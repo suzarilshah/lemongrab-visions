@@ -144,7 +144,7 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-2xl">✨ AI Prompt Builder</DialogTitle>
           <DialogDescription>
@@ -152,7 +152,7 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
+        <div className="space-y-4 py-4 overflow-y-auto flex-1">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="subject">Subject(s) *</Label>
@@ -285,7 +285,7 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
             />
           </div>
 
-          <div className="flex gap-2 justify-end">
+          <div className="flex gap-2 justify-end pt-4 border-t sticky bottom-0 bg-background">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
@@ -309,10 +309,10 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
             <Button
               onClick={handleUsePrompt}
               disabled={!generatedPrompt.trim()}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
               <Check className="mr-2 h-4 w-4" />
-              Use This Prompt
+              ✅ Use This Prompt
             </Button>
           </div>
         </div>
