@@ -38,8 +38,16 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
 
   onProgress?.("Creating video generation job...");
 
-  // Create video generation job
-  const requestBody: any = {
+  // Detect if using Sora 2 (OpenAI format) or Sora 1 (Azure format)
+  const isSora2 = deployment.toLowerCase().includes('sora-2');
+
+  // Create video generation job with appropriate format
+  const requestBody: any = isSora2 ? {
+    model: deployment,
+    prompt,
+    size: `${width}x${height}`, // Sora 2 uses "size" (e.g., "1280x720")
+    seconds: duration.toString(), // Sora 2 uses "seconds" not "n_seconds"
+  } : {
     model: deployment,
     prompt,
     height,
@@ -49,17 +57,17 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   };
 
   // Add audio parameter only if it's explicitly true (for Sora 2)
-  if (audio === true) {
+  if (audio === true && isSora2) {
     requestBody.audio = true;
   }
 
   // Add input_reference if provided (for image-to-video)
-  if (inputReference) {
+  if (inputReference && isSora2) {
     requestBody.input_reference = inputReference;
   }
 
   // Add remix_video_id if provided (for video-to-video)
-  if (remixVideoId) {
+  if (remixVideoId && isSora2) {
     requestBody.remix_video_id = remixVideoId;
   }
 
@@ -97,7 +105,7 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   onProgress?.("Job created. Waiting for processing...");
 
   // Poll for completion and get video
-  return pollJobStatus(jobId, endpoint, apiKey, onProgress, opLoc || undefined);
+  return pollJobStatus(jobId, endpoint, apiKey, onProgress, opLoc || undefined, isSora2);
 }
 
 async function pollJobStatus(
@@ -105,7 +113,8 @@ async function pollJobStatus(
   endpoint: string, 
   apiKey: string,
   onProgress?: (status: string) => void,
-  statusUrlOverride?: string
+  statusUrlOverride?: string,
+  isSora2: boolean = false
 ): Promise<Blob> {
   const maxAttempts = 180; // 15 minutes max (progressive backoff)
   let attempts = 0;
@@ -118,10 +127,20 @@ async function pollJobStatus(
     }
 
     const [baseUrl, queryParams] = endpoint.split('?');
-    // Azure status endpoint: use /jobs/{id} when endpoint ends with /jobs
-    const root = baseUrl.replace(/\/(jobs|tasks)$/, '');
-    const statusBase = `${root}/jobs`;
-    const computedStatusUrl = `${statusBase}/${jobId}${queryParams ? '?' + queryParams : ''}`;
+    
+    // Different URL structure for Sora 2 (OpenAI format) vs Sora 1 (Azure format)
+    let computedStatusUrl: string;
+    if (isSora2) {
+      // Sora 2: /videos/{video_id}
+      const root = baseUrl.replace(/\/videos$/, '');
+      computedStatusUrl = `${root}/videos/${jobId}${queryParams ? '?' + queryParams : ''}`;
+    } else {
+      // Sora 1: /jobs/{id}
+      const root = baseUrl.replace(/\/(jobs|tasks)$/, '');
+      const statusBase = `${root}/jobs`;
+      computedStatusUrl = `${statusBase}/${jobId}${queryParams ? '?' + queryParams : ''}`;
+    }
+    
     const statusUrl = statusUrlOverride || computedStatusUrl;
     console.info('[VideoGen] Polling status URL:', statusUrl, 'jobId:', jobId);
     try { onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'GET', url: statusUrl, time: Date.now() })}`); } catch {}
@@ -153,27 +172,37 @@ async function pollJobStatus(
     console.info('[VideoGen] Status response:', job);
     try { onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'status', status: job.status, jobId, time: Date.now() })}`); } catch {}
 
-    // Azure uses "succeeded" not "completed"
-    if (job.status === 'succeeded') {
+    // Sora 2 uses "completed", Sora 1 uses "succeeded"
+    const isCompleted = isSora2 ? job.status === 'completed' : job.status === 'succeeded';
+    
+    if (isCompleted) {
       onProgress?.("Video generated! Downloading...");
 
-      // Determine generation id then download from /video/generations/{generation_id}/content/video
-      const generations = Array.isArray(job.generations) ? job.generations : [];
-      const genId = generations[0]?.id;
-      if (!genId) {
-        try { onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'no_generation_id', jobId, time: Date.now(), job })}`); } catch {}
-        throw new Error('Generation ID missing in job response');
-      }
-
       let videoUrl = '';
-      if (statusUrlOverride) {
-        const parts = statusUrl.split('?');
-        const base = parts[0].replace(/\/jobs\/[^/]+$/, ''); // -> .../video/generations
-        videoUrl = `${base}/${genId}/content/video${parts[1] ? '?' + parts[1] : ''}`;
-      } else {
+      
+      if (isSora2) {
+        // Sora 2: /videos/{video_id}/content
         const [baseUrl, queryParams] = endpoint.split('?');
-        const root = baseUrl.replace(/\/(jobs|tasks)$/, ''); // -> .../video/generations
-        videoUrl = `${root}/${genId}/content/video${queryParams ? '?' + queryParams : ''}`;
+        const root = baseUrl.replace(/\/videos$/, '');
+        videoUrl = `${root}/videos/${jobId}/content${queryParams ? '?' + queryParams : ''}`;
+      } else {
+        // Sora 1: /video/generations/{generation_id}/content/video
+        const generations = Array.isArray(job.generations) ? job.generations : [];
+        const genId = generations[0]?.id;
+        if (!genId) {
+          try { onProgress?.(`log:${JSON.stringify({ type: 'meta', message: 'no_generation_id', jobId, time: Date.now(), job })}`); } catch {}
+          throw new Error('Generation ID missing in job response');
+        }
+
+        if (statusUrlOverride) {
+          const parts = statusUrl.split('?');
+          const base = parts[0].replace(/\/jobs\/[^/]+$/, '');
+          videoUrl = `${base}/${genId}/content/video${parts[1] ? '?' + parts[1] : ''}`;
+        } else {
+          const [baseUrl, queryParams] = endpoint.split('?');
+          const root = baseUrl.replace(/\/(jobs|tasks)$/, '');
+          videoUrl = `${root}/${genId}/content/video${queryParams ? '?' + queryParams : ''}`;
+        }
       }
 
       console.info('[VideoGen] Computed video URL:', videoUrl);
@@ -213,6 +242,8 @@ async function pollJobStatus(
       'preprocessing': 'Preprocessing your request...',
       'running': 'Generating video...',
       'processing': 'Processing video...',
+      'queued': 'Job queued...',
+      'in_progress': 'Generating video...',
     };
     
     onProgress?.(statusMessages[job.status] || `Status: ${job.status}`);

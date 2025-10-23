@@ -103,6 +103,7 @@ export default function Sora2FeaturesDialog() {
             <div className="rounded-lg bg-muted p-4 space-y-2">
               <h3 className="font-semibold text-base">Other Service Limitations</h3>
               <ul className="list-disc list-inside space-y-1 text-muted-foreground text-xs">
+                <li><strong>Generation Time:</strong> Video generation takes time. Depending on model, API load and resolution, a single render may take several minutes.</li>
                 <li><strong>Concurrency:</strong> You are limited to two parallel (concurrent) video creation jobs at a time.</li>
                 <li><strong>Job Availability:</strong> A completed video generation job and its downloadable video file are only available for 24 hours after creation.</li>
               </ul>
