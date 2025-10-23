@@ -39,8 +39,12 @@ const RESOLUTIONS = [
 ];
 
 const SORA2_RESOLUTIONS = [
-  { value: "720x1280", label: "720x1280 (Portrait)" },
+  { value: "480x480", label: "480x480 (Square)" },
+  { value: "854x480", label: "854x480 (Landscape)" },
+  { value: "720x720", label: "720x720 (Square)" },
   { value: "1280x720", label: "1280x720 (Landscape)" },
+  { value: "1080x1080", label: "1080x1080 (Square)" },
+  { value: "1920x1080", label: "1920x1080 (Landscape)" },
 ];
 
 const SORA2_DURATIONS = [
@@ -76,7 +80,7 @@ export default function VideoGenerationForm({
       setSoraVersion(settings.soraVersion || "sora-1");
       // Set default resolution based on version
       if (settings.soraVersion === "sora-2") {
-        setResolution("720x1280");
+        setResolution("1280x720");
         setDuration("4");
       }
     }
@@ -180,6 +184,11 @@ export default function VideoGenerationForm({
             className="min-h-[120px] glass border-primary/20 resize-none"
             disabled={isGenerating}
           />
+          <p className="text-xs text-muted-foreground">
+            For best results, describe shot type, subject, action, setting, and lighting.
+            <br />
+            <strong>Example:</strong> "Wide shot of a child flying a red kite in a grassy park, golden hour sunlight, camera slowly pans upward."
+          </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-[1fr_300px]">

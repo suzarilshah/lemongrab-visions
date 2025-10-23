@@ -41,48 +41,82 @@ export async function generateVideo(params: VideoGenerationParams): Promise<Blob
   // Detect if using Sora 2 (OpenAI format) or Sora 1 (Azure format)
   const isSora2 = deployment.toLowerCase().includes('sora-2');
 
-  // Create video generation job with appropriate format
-  const requestBody: any = isSora2 ? {
-    model: deployment,
-    prompt,
-    size: `${width}x${height}`, // Sora 2 uses "size" (e.g., "1280x720")
-    seconds: duration.toString(), // Sora 2 uses "seconds" not "n_seconds"
-  } : {
-    model: deployment,
-    prompt,
-    height,
-    width,
-    n_seconds: duration.toString(),
-    n_variants: variants,
-  };
+  // For Sora 2 with file uploads, use FormData; otherwise use JSON
+  const needsFormData = isSora2 && inputReference;
+  
+  let requestBody: any;
+  let fetchOptions: RequestInit;
 
-  // Add audio parameter only if it's explicitly true (for Sora 2)
-  if (audio === true && isSora2) {
-    requestBody.audio = true;
-  }
+  if (needsFormData) {
+    // Use FormData for image-to-video mode
+    const formData = new FormData();
+    formData.append('model', deployment);
+    formData.append('prompt', prompt);
+    formData.append('size', `${width}x${height}`);
+    formData.append('seconds', duration.toString());
+    
+    if (audio === true) {
+      formData.append('audio', 'true');
+    }
+    
+    if (inputReference) {
+      formData.append('input_reference', inputReference);
+    }
+    
+    if (remixVideoId) {
+      formData.append('remix_video_id', remixVideoId);
+    }
 
-  // Add input_reference if provided (for image-to-video)
-  if (inputReference && isSora2) {
-    requestBody.input_reference = inputReference;
-  }
+    fetchOptions = {
+      method: 'POST',
+      headers: {
+        'api-key': apiKey,
+      },
+      body: formData,
+    };
+    
+    requestBody = { note: 'FormData with file upload' };
+  } else {
+    // Use JSON for text-only requests
+    requestBody = isSora2 ? {
+      model: deployment,
+      prompt,
+      size: `${width}x${height}`, // Sora 2 uses "size" (e.g., "1280x720")
+      seconds: duration.toString(), // Sora 2 uses "seconds" not "n_seconds"
+    } : {
+      model: deployment,
+      prompt,
+      height,
+      width,
+      n_seconds: duration.toString(),
+      n_variants: variants,
+    };
 
-  // Add remix_video_id if provided (for video-to-video)
-  if (remixVideoId && isSora2) {
-    requestBody.remix_video_id = remixVideoId;
+    // Add audio parameter only if it's explicitly true (for Sora 2)
+    if (audio === true && isSora2) {
+      requestBody.audio = true;
+    }
+
+    // Add remix_video_id if provided (for video-to-video)
+    if (remixVideoId && isSora2) {
+      requestBody.remix_video_id = remixVideoId;
+    }
+
+    fetchOptions = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'api-key': apiKey,
+      },
+      body: JSON.stringify(requestBody),
+    };
   }
 
   try {
     onProgress?.(`log:${JSON.stringify({ type: 'request', method: 'POST', url: endpoint, body: requestBody, time: Date.now() })}`);
   } catch {}
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'api-key': apiKey,
-    },
-    body: JSON.stringify(requestBody),
-  });
+  const response = await fetch(endpoint, fetchOptions);
 
   const opLoc = response.headers.get('operation-location') || response.headers.get('Operation-Location');
 
