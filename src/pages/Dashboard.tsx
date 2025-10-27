@@ -19,6 +19,7 @@ import ApiConsole from "@/components/ApiConsole";
 import SoraLimitationsDialog from "@/components/SoraLimitationsDialog";
 import Sora2FeaturesDialog from "@/components/Sora2FeaturesDialog";
 import CostTracking from "@/components/CostTracking";
+import MigrationBanner from "@/components/MigrationBanner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveGenerationRecord, calculateCost } from "@/lib/costTracking";
 import { getActiveProfile } from "@/lib/profiles";
@@ -302,6 +303,9 @@ export default function Dashboard() {
           </TabsList>
 
           <TabsContent value="generate" className="space-y-6">
+            {/* Migration Banner */}
+            <MigrationBanner />
+            
             {/* Generator Form */}
             <VideoGenerationForm
               onGenerate={handleGenerate}

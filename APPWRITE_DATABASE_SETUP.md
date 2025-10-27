@@ -25,9 +25,19 @@ Follow these steps in the Appwrite Console to complete the migration:
 | 7 | `is_active` | Boolean | - | ❌ No | ❌ No | `false` |
 
 #### Set Permissions:
-- **Role:** Any authenticated user (Users)
-- **Permissions:** ✅ Create, ✅ Read, ✅ Update, ✅ Delete
-- **Condition:** `user_id` equals current user's ID
+
+**CRITICAL:** You must configure document-level security to ensure users can only access their own profiles.
+
+Go to **Settings** → **Permissions** for the `profiles_config` collection:
+
+1. **Remove** any default "Any" or "Guests" permissions
+2. Click **"Add Role"**
+3. Select **"Users"** 
+4. Check: ✅ Create, ✅ Read, ✅ Update, ✅ Delete
+5. Under **"Document Security"**, ensure the collection is set to **"Document Level"** (not Collection Level)
+6. Save
+
+This ensures users can only CRUD their own documents (filtered by `user_id`).
 
 #### Create Indexes (Optional but Recommended):
 - **Index 1:** `idx_user_id` on `user_id` (Ascending)
@@ -58,9 +68,19 @@ Follow these steps in the Appwrite Console to complete the migration:
 | 9 | `azure_video_id` | String | 255 | ❌ No | ❌ No | `null` |
 
 #### Set Permissions:
-- **Role:** Any authenticated user (Users)
-- **Permissions:** ✅ Create, ✅ Read, ✅ Update, ✅ Delete
-- **Condition:** `user_id` equals current user's ID
+
+**CRITICAL:** You must configure document-level security to ensure users can only access their own video metadata.
+
+Go to **Settings** → **Permissions** for the `video_metadata` collection:
+
+1. **Remove** any default "Any" or "Guests" permissions
+2. Click **"Add Role"**
+3. Select **"Users"**
+4. Check: ✅ Create, ✅ Read, ✅ Update, ✅ Delete
+5. Under **"Document Security"**, ensure the collection is set to **"Document Level"** (not Collection Level)
+6. Save
+
+This ensures users can only CRUD their own video metadata (filtered by `user_id`).
 
 #### Create Indexes (Optional but Recommended):
 - **Index 1:** `idx_user_videos` on `user_id` (Ascending)
@@ -114,22 +134,45 @@ export const VIDEO_METADATA_COLLECTION_ID = 'video_metadata'; // ✨ Add this
 
 ---
 
-## 5️⃣ Migration from localStorage (Optional)
+## 5️⃣ Migration from localStorage
 
-If you have existing users with data in localStorage, you have two options:
+### Automatic Migration via Appwrite Function
 
-### Option A: Let Users Re-create (Simplest)
-- Users will need to re-enter their profile settings
-- Previous videos in Storage will still be there, but metadata will be empty initially
-- New videos will populate the database correctly
+I've created an Appwrite Function to automatically migrate localStorage data to the database.
 
-### Option B: Create Migration Function
-I can create an Appwrite Function that:
-1. Accepts localStorage data from the frontend
-2. Migrates it to the new database collections
-3. Returns success/failure status
+#### Setup Steps:
 
-**Do you want me to create this migration function?** Let me know and I'll implement it.
+1. **The function code is ready** in `appwrite/functions/migrate-localstorage/`
+2. **Set up the function in Appwrite Console:**
+   - Go to Appwrite Console → Functions
+   - Wait for your GitHub CI/CD to automatically deploy the `migrate-localstorage` function
+   - OR manually create it:
+     - **Name:** `migrate-localstorage`
+     - **Runtime:** Node.js 18+
+     - **Entry Point:** `index.js`
+     - **Execute Access:** Users (authenticated)
+
+3. **The migration UI is already integrated** in the Dashboard - users will see a banner if they have localStorage data
+
+#### How It Works:
+
+1. User logs in and visits Dashboard
+2. If localStorage data is detected, a **Migration Banner** appears
+3. User clicks **"Migrate to Cloud"**
+4. Function receives localStorage data and creates Appwrite Database records
+5. localStorage is cleared after successful migration
+6. Page reloads to show migrated data
+
+#### What Gets Migrated:
+
+- **Profiles:** Azure API configurations (endpoint, API key, deployment, Sora version)
+- **Video Metadata:** Generated video records (prompts, dimensions, URLs)
+
+#### Security:
+
+- Function requires JWT authentication
+- All migrated data is associated with the requesting user's ID
+- Duplicate detection prevents data conflicts
 
 ---
 

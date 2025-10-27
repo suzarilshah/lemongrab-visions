@@ -1,0 +1,16 @@
+{
+  "name": "migrate-localstorage",
+  "version": "1.0.0",
+  "description": "Migrate localStorage data to Appwrite Database",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "format": "prettier --write ."
+  },
+  "dependencies": {
+    "node-appwrite": "^14.1.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.0.0"
+  }
+}

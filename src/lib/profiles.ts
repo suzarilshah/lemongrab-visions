@@ -1,4 +1,4 @@
-import { databases, DATABASE_ID } from "@/lib/appwrite";
+import { databases, DATABASE_ID, account } from "@/lib/appwrite";
 import { ID, Query } from "appwrite";
 
 export type SoraVersion = "sora-1" | "sora-2";
@@ -16,10 +16,14 @@ const PROFILES_COLLECTION_ID = "profiles_config";
 
 export async function getProfiles(): Promise<Profile[]> {
   try {
+    const user = await account.get();
     const response = await databases.listDocuments(
       DATABASE_ID,
       PROFILES_COLLECTION_ID,
-      [Query.orderDesc("$createdAt")]
+      [
+        Query.equal("user_id", user.$id),
+        Query.orderDesc("$createdAt")
+      ]
     );
     
     return response.documents.map((doc: any) => ({
@@ -58,11 +62,13 @@ export async function saveProfile(profile: Profile): Promise<void> {
 
 export async function createProfile(input: Omit<Profile, "id">): Promise<Profile> {
   try {
+    const user = await account.get();
     const response = await databases.createDocument(
       DATABASE_ID,
       PROFILES_COLLECTION_ID,
       ID.unique(),
       {
+        user_id: user.$id,
         name: input.name,
         endpoint: input.endpoint,
         api_key: input.apiKey,
@@ -113,7 +119,8 @@ export async function deleteProfile(id: string): Promise<void> {
 
 export async function setActiveProfile(id: string): Promise<void> {
   try {
-    // First, deactivate all profiles
+    const user = await account.get();
+    // First, deactivate all user's profiles
     const profiles = await getProfiles();
     for (const profile of profiles) {
       await databases.updateDocument(
@@ -124,7 +131,7 @@ export async function setActiveProfile(id: string): Promise<void> {
       );
     }
 
-    // Then activate the selected profile
+    // Then activate the selected profile (verify it belongs to user)
     await databases.updateDocument(
       DATABASE_ID,
       PROFILES_COLLECTION_ID,
@@ -139,10 +146,15 @@ export async function setActiveProfile(id: string): Promise<void> {
 
 export async function getActiveProfile(): Promise<Profile | null> {
   try {
+    const user = await account.get();
     const response = await databases.listDocuments(
       DATABASE_ID,
       PROFILES_COLLECTION_ID,
-      [Query.equal("is_active", true), Query.limit(1)]
+      [
+        Query.equal("user_id", user.$id),
+        Query.equal("is_active", true),
+        Query.limit(1)
+      ]
     );
 
     if (response.documents.length === 0) {
