@@ -1,4 +1,4 @@
-import { Client, Storage, Databases, ID } from 'node-appwrite';
+import { Client, Storage, Databases, ID, InputFile } from 'node-appwrite';
 
 const BUCKET_ID = '68f8f4c20021c88b0a89';
 const DATABASE_ID = '68fa40390030997a7a96';
@@ -59,15 +59,17 @@ export default async ({ req, res, log, error }) => {
     }
 
     const videoBuffer = await videoResponse.arrayBuffer();
-    const videoBlob = new Blob([videoBuffer], { type: 'video/mp4' });
-    log(`Video downloaded successfully, size: ${videoBlob.size} bytes`);
+    log(`Video downloaded successfully, size: ${videoBuffer.byteLength} bytes`);
 
     // Step 2: Upload to Appwrite Storage
     log('Uploading video to Appwrite Storage...');
     const fileName = `video_${Date.now()}_${azureVideoId || 'unknown'}.mp4`;
     
-    // Convert Blob to File for Appwrite SDK
-    const file = new File([videoBlob], fileName, { type: 'video/mp4' });
+    // Convert ArrayBuffer to Buffer for Node.js environment
+    const nodeBuffer = Buffer.from(videoBuffer);
+    
+    // Use InputFile for Appwrite SDK in Node.js environment
+    const file = InputFile.fromBuffer(nodeBuffer, fileName);
     
     const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file);
     log(`Video uploaded to Appwrite, file ID: ${uploadedFile.$id}`);
