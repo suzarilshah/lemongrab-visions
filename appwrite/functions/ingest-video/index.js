@@ -1,5 +1,4 @@
-import sdk from 'node-appwrite';
-const { Client, Storage, Databases, ID, InputFile } = sdk;
+import { Client, Storage, Databases, ID } from 'node-appwrite';
 
 const BUCKET_ID = '68f8f4c20021c88b0a89';
 const DATABASE_ID = '68fa40390030997a7a96';
@@ -33,10 +32,14 @@ export default async ({ req, res, log, error }) => {
     log(`Starting video ingestion from ${videoUrl}`);
 
     // Initialize Appwrite client with API key
+    const endpoint = req.env?.APPWRITE_ENDPOINT || process.env.APPWRITE_ENDPOINT || 'https://syd.cloud.appwrite.io/v1';
+    const projectId = req.env?.APPWRITE_FUNCTION_PROJECT_ID || process.env.APPWRITE_FUNCTION_PROJECT_ID;
+    const serverApiKey = req.env?.APPWRITE_FUNCTION_API_KEY || process.env.APPWRITE_API_KEY;
+
     const client = new Client()
-      .setEndpoint(process.env.APPWRITE_ENDPOINT || 'https://syd.cloud.appwrite.io/v1')
-      .setProject(process.env.APPWRITE_FUNCTION_PROJECT_ID)
-      .setKey(process.env.APPWRITE_API_KEY);
+      .setEndpoint(endpoint)
+      .setProject(projectId)
+      .setKey(serverApiKey);
 
     const storage = new Storage(client);
     const databases = new Databases(client);
@@ -69,13 +72,11 @@ export default async ({ req, res, log, error }) => {
     // Convert ArrayBuffer to Buffer for Node.js environment
     const nodeBuffer = Buffer.from(videoBuffer);
     
-    // Use InputFile for Appwrite SDK in Node.js environment
-    const file = InputFile.fromBuffer(nodeBuffer, fileName);
-    
-    const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file);
+    // Upload buffer directly (no InputFile needed in Node SDK v14)
+    const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), nodeBuffer);
     log(`Video uploaded to Appwrite, file ID: ${uploadedFile.$id}`);
 
-    const appwriteUrl = `${process.env.APPWRITE_ENDPOINT || 'https://syd.cloud.appwrite.io/v1'}/storage/buckets/${BUCKET_ID}/files/${uploadedFile.$id}/view?project=${process.env.APPWRITE_FUNCTION_PROJECT_ID}`;
+    const appwriteUrl = `${endpoint}/storage/buckets/${BUCKET_ID}/files/${uploadedFile.$id}/view?project=${projectId}`;
 
     // Step 3: Save metadata to database
     log('Saving video metadata to database...');
