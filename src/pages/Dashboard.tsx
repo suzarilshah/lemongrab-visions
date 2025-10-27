@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { account } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Settings, LogOut, Moon, Sun, Images, DollarSign } from "lucide-react";
+import { Settings, LogOut, Moon, Sun, Images, DollarSign, List, X, PlayCircle } from "lucide-react";
 import logo from "@/assets/logo.svg";
 import { generateVideo } from "@/lib/videoGenerator";
 import { 
@@ -20,8 +20,11 @@ import SoraLimitationsDialog from "@/components/SoraLimitationsDialog";
 import Sora2FeaturesDialog from "@/components/Sora2FeaturesDialog";
 import CostTracking from "@/components/CostTracking";
 import MigrationBanner from "@/components/MigrationBanner";
+import Generations from "@/components/Generations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { saveGenerationRecord, calculateCost } from "@/lib/costTracking";
+import { Card, CardContent } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { saveGenerationRecord, calculateCost, upsertGenerationRecord, updateGenerationStatus, fetchActiveGeneration } from "@/lib/costTracking";
 import { getActiveProfile } from "@/lib/profiles";
 
 export default function Dashboard() {
@@ -37,12 +40,28 @@ export default function Dashboard() {
   const [soraVersion, setSoraVersion] = useState<string>("sora-1");
   const [activeProfileName, setActiveProfileName] = useState<string>("");
   const [activeTab, setActiveTab] = useState<string>("generate");
+  const [activeGeneration, setActiveGeneration] = useState<any>(null);
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     checkAuth();
     loadVideos();
     loadActiveProfile();
+    restoreActiveGeneration();
   }, []);
+
+  const restoreActiveGeneration = async () => {
+    const active = await fetchActiveGeneration();
+    if (active) {
+      console.log('[Dashboard] Restored active generation:', active);
+      setActiveGeneration(active);
+      setCurrentJobId(active.jobId || null);
+      toast.info("Active generation found", {
+        description: "You have a video generation in progress",
+      });
+    }
+  };
 
   const loadActiveProfile = async () => {
     const profile = await getActiveProfile();
@@ -87,6 +106,28 @@ export default function Dashboard() {
     }
   };
 
+  const handleCancelJob = async () => {
+    if (!currentJobId) return;
+    console.log('[Dashboard] Canceling job:', currentJobId);
+    
+    // Abort polling
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+
+    // Update DB
+    await updateGenerationStatus(currentJobId, 'canceled');
+    
+    setIsGenerating(false);
+    setProgress(0);
+    setProgressMessage("");
+    setActiveGeneration(null);
+    setCurrentJobId(null);
+    
+    toast.success("Generation canceled");
+  };
+
   const handleGenerate = async (params: {
     prompt: string;
     height: string;
@@ -120,6 +161,28 @@ export default function Dashboard() {
     setProgress(10);
     setProgressMessage("Starting video generation...");
 
+    // Determine generation mode
+    let generationMode = "text-to-video";
+    if (params.inputReference) {
+      generationMode = "image-to-video";
+    } else if (params.remixVideoId) {
+      generationMode = "video-to-video";
+    }
+
+    // Calculate cost
+    const estimatedCost = calculateCost(
+      params.width,
+      params.height,
+      params.duration.toString(),
+      params.variants,
+      settings.soraVersion || soraVersion
+    );
+
+    // Create abort controller for canceling
+    abortControllerRef.current = new AbortController();
+
+    let jobId: string | null = null;
+
     try {
       const result = await generateVideo({
         prompt: params.prompt,
@@ -133,39 +196,65 @@ export default function Dashboard() {
         audio: params.audio,
         inputReference: params.inputReference,
         remixVideoId: params.remixVideoId,
-          onProgress: (status: string) => {
-            setProgressMessage(status);
+        onProgress: (status: string) => {
+          setProgressMessage(status);
 
-            if (status.startsWith("log:")) {
-              try {
-                const payload = JSON.parse(status.slice(4));
-                setApiLogs((prev) => [{ id: `${Date.now()}-${Math.random()}`, ...payload }, ...prev].slice(0, 500));
-              } catch {}
-              return;
-            }
+          if (status.startsWith("log:")) {
+            try {
+              const payload = JSON.parse(status.slice(4));
+              setApiLogs((prev) => [{ id: `${Date.now()}-${Math.random()}`, ...payload }, ...prev].slice(0, 500));
+              
+              // Capture jobId from log if available
+              if (payload.message === 'Job created' && payload.jobId && !jobId) {
+                jobId = payload.jobId;
+                setCurrentJobId(jobId);
+                console.log('[Dashboard] Captured jobId:', jobId);
+                
+                // Upsert initial record
+                void upsertGenerationRecord({
+                  jobId,
+                  prompt: params.prompt,
+                  soraModel: settings.soraVersion || soraVersion,
+                  duration: params.duration,
+                  resolution: `${params.width}x${params.height}`,
+                  variants: parseInt(params.variants),
+                  generationMode,
+                  estimatedCost,
+                  profileName: activeProfileName || "Default",
+                  status: 'running',
+                });
+              }
+            } catch {}
+            return;
+          }
 
-            if (status.startsWith("download_url:")) {
-              const url = status.replace("download_url:", "").trim();
-              setDirectVideoUrl(url);
-              console.info("[VideoGen] Direct download URL:", url);
-              toast.message("Video ready", {
-                description: "Open the direct download link",
-                action: { label: "Open", onClick: () => window.open(url, "_blank") },
-              });
-            }
+          if (status.startsWith("download_url:")) {
+            const url = status.replace("download_url:", "").trim();
+            setDirectVideoUrl(url);
+            console.info("[VideoGen] Direct download URL:", url);
+            toast.message("Video ready", {
+              description: "Open the direct download link",
+              action: { label: "Open", onClick: () => window.open(url, "_blank") },
+            });
+          }
 
-            // Simulate progress increase based on status
-            if (status.includes("created")) setProgress(20);
-            if (status.includes("Initializing")) setProgress(30);
-            if (status.includes("Preprocessing")) setProgress(40);
-            if (status.includes("Generating")) setProgress(60);
-            if (status.includes("Processing")) setProgress(80);
-            if (status.includes("Downloading")) setProgress(90);
-          },
-      });
+          // Simulate progress increase based on status
+          if (status.includes("created")) setProgress(20);
+          if (status.includes("Initializing")) setProgress(30);
+          if (status.includes("Preprocessing")) setProgress(40);
+          if (status.includes("Generating")) {
+            setProgress(60);
+            if (jobId) void updateGenerationStatus(jobId, 'running');
+          }
+          if (status.includes("Processing")) setProgress(80);
+          if (status.includes("Downloading")) setProgress(90);
+        },
+      }, abortControllerRef.current);
 
       setProgress(95);
       setProgressMessage("Uploading to storage...");
+
+      const videoIdFinal = result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined;
 
       const metadata = await uploadVideoToAppwrite(
         result.blob,
@@ -174,40 +263,32 @@ export default function Dashboard() {
         params.width,
         params.duration.toString(),
         soraVersion,
-        // Ensure full video_ prefix is present
-        result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined
+        videoIdFinal
       );
       await loadVideos();
-      // Determine generation mode
-      let generationMode = "text-to-video";
-      if (params.inputReference) {
-        generationMode = "image-to-video";
-      } else if (params.remixVideoId) {
-        generationMode = "video-to-video";
+
+      // Update generation record with completion
+      if (jobId) {
+        await updateGenerationStatus(jobId, 'completed', { videoId: videoIdFinal });
+      } else {
+        // Fallback: save new record if jobId wasn't captured
+        await saveGenerationRecord({
+          prompt: params.prompt,
+          soraModel: settings.soraVersion || soraVersion,
+          duration: params.duration,
+          resolution: `${params.width}x${params.height}`,
+          variants: parseInt(params.variants),
+          generationMode,
+          estimatedCost,
+          videoId: videoIdFinal,
+          profileName: activeProfileName || "Default",
+          status: 'completed',
+        });
       }
-
-      // Calculate and save cost tracking
-      const estimatedCost = calculateCost(
-        params.width,
-        params.height,
-        params.duration.toString(),
-        params.variants,
-        settings.soraVersion || soraVersion
-      );
-
-      await saveGenerationRecord({
-        prompt: params.prompt,
-        soraModel: settings.soraVersion || soraVersion,
-        duration: params.duration,
-        resolution: `${params.width}x${params.height}`,
-        variants: parseInt(params.variants),
-        generationMode,
-        estimatedCost,
-        videoId: result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined,
-        profileName: activeProfileName || "Default",
-      });
       
       setProgress(100);
+      setActiveGeneration(null);
+      setCurrentJobId(null);
       toast.success("🎉 Video generated successfully!");
     } catch (error: any) {
       console.error("[Dashboard] Video generation error:", {
@@ -216,12 +297,19 @@ export default function Dashboard() {
         stack: error?.stack
       });
       
+      // Update status to failed if we have jobId
+      if (jobId) {
+        await updateGenerationStatus(jobId, 'failed');
+      }
+      
       // Check if it's a CORS-related error
       if (error?.message?.includes("CORS") || error?.message === "Failed to fetch") {
         toast.error("Connection Error", {
           description: "Cannot connect to Appwrite. Check console for CORS setup instructions.",
           duration: 10000
         });
+      } else if (error?.name === 'AbortError') {
+        toast.info("Generation canceled by user");
       } else {
         toast.error(error.message || "Failed to generate video");
       }
@@ -229,6 +317,9 @@ export default function Dashboard() {
       setIsGenerating(false);
       setProgress(0);
       setProgressMessage("");
+      setActiveGeneration(null);
+      setCurrentJobId(null);
+      abortControllerRef.current = null;
     }
   };
 
@@ -296,6 +387,10 @@ export default function Dashboard() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="glass border-primary/20 mb-6">
             <TabsTrigger value="generate">Generate</TabsTrigger>
+            <TabsTrigger value="generations">
+              <List className="h-4 w-4 mr-2" />
+              Generations
+            </TabsTrigger>
             <TabsTrigger value="cost-tracking">
               <DollarSign className="h-4 w-4 mr-2" />
               Cost Tracking
@@ -305,6 +400,31 @@ export default function Dashboard() {
           <TabsContent value="generate" className="space-y-6">
             {/* Migration Banner */}
             <MigrationBanner />
+
+            {/* Active Generation Resume Banner */}
+            {activeGeneration && !isGenerating && (
+              <Alert className="glass border-primary/20 bg-primary/5">
+                <PlayCircle className="h-4 w-4" />
+                <AlertDescription className="flex items-center justify-between">
+                  <div>
+                    <p className="font-semibold">Active generation in progress</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Job ID: {activeGeneration.jobId || "N/A"} • Status: {activeGeneration.status || "unknown"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleCancelJob}
+                    >
+                      <X className="h-4 w-4 mr-1" />
+                      Cancel
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
             
             {/* Generator Form */}
             <VideoGenerationForm
@@ -319,6 +439,10 @@ export default function Dashboard() {
 
             {/* API Console */}
             <ApiConsole logs={apiLogs} onClear={() => setApiLogs([])} />
+          </TabsContent>
+
+          <TabsContent value="generations">
+            <Generations />
           </TabsContent>
 
           <TabsContent value="cost-tracking">

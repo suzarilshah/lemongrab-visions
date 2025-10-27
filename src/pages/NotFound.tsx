@@ -1,5 +1,5 @@
-import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
+import { useLocation, Link } from "react-router-dom";
 import logo from "@/assets/logo.svg";
 
 const NotFound = () => {
@@ -15,9 +15,9 @@ const NotFound = () => {
         <img src={logo} alt="LemonGrab Logo" className="h-16 w-16 mx-auto mb-4 opacity-70" />
         <h1 className="mb-4 text-4xl font-bold">404</h1>
         <p className="mb-4 text-xl text-gray-600">Oops! Page not found</p>
-        <a href="/" className="text-blue-500 underline hover:text-blue-700">
+        <Link to="/" className="text-blue-500 underline hover:text-blue-700">
           Return to Home
-        </a>
+        </Link>
       </div>
     </div>
   );
