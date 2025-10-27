@@ -7,6 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { cancelVideoJob } from "@/lib/videoGenerator";
+import { getActiveProfile } from "@/lib/profiles";
+import { updateGenerationStatus } from "@/lib/costTracking";
+import { X } from "lucide-react";
 
 interface GenerationRow {
   $id: string;
@@ -48,6 +52,22 @@ export default function Generations() {
     }
   }
 
+  async function handleCancelJob(jobId: string, soraModel: string) {
+    try {
+      const profile = await getActiveProfile();
+      const soraVersion = soraModel === 'sora-2' ? 'sora-2' : 'sora-1';
+      
+      await cancelVideoJob(jobId, profile.endpoint, profile.apiKey, soraVersion);
+      await updateGenerationStatus(jobId, 'canceled');
+      
+      toast.success('Video generation canceled');
+      await load(); // Reload the list
+    } catch (error) {
+      console.error('[Generations] Cancel error:', error);
+      toast.error('Failed to cancel generation');
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -83,6 +103,7 @@ export default function Generations() {
                     <TableHead>Variants</TableHead>
                     <TableHead>Prompt</TableHead>
                     <TableHead className="text-right">Cost</TableHead>
+                    <TableHead className="text-center">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -101,6 +122,19 @@ export default function Generations() {
                       <TableCell className="text-xs">{r.variants}</TableCell>
                       <TableCell className="text-xs max-w-[240px] truncate" title={r.prompt}>{r.prompt}</TableCell>
                       <TableCell className="text-right font-bold">${r.estimatedCost.toFixed(2)}</TableCell>
+                      <TableCell className="text-center">
+                        {(r.status === 'running' || r.status === 'queued') && r.jobId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleCancelJob(r.jobId!, r.soraModel)}
+                            className="h-7 w-7 p-0"
+                            title="Cancel generation"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

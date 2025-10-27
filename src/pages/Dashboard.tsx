@@ -302,11 +302,14 @@ export default function Dashboard() {
         // Use the directVideoUrl that was set in the onProgress callback
         const videoUrl = directVideoUrl || `${settings.endpoint}/video-generator/videos/${videoIdFinal}`;
 
+        // Get the active profile to use its API key for downloading
+        const activeProfile = await getActiveProfile();
+        
         const ingestResult = await functions.createExecution(
           'ingest-video',
           JSON.stringify({
             videoUrl,
-            apiKey: settings.apiKey,
+            apiKey: activeProfile.apiKey, // Use API key from active profile
             prompt: params.prompt,
             height: params.height,
             width: params.width,
