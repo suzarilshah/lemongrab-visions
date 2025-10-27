@@ -1,4 +1,5 @@
-import { Client, Storage, Databases, ID, InputFile } from 'node-appwrite';
+import sdk from 'node-appwrite';
+const { Client, Storage, Databases, ID, InputFile } = sdk;
 
 const BUCKET_ID = '68f8f4c20021c88b0a89';
 const DATABASE_ID = '68fa40390030997a7a96';
