@@ -79,33 +79,38 @@ export default async ({ req, res, log, error }) => {
     const file = new File([blob], fileName, { type: 'video/mp4' });
     log(`✓ CREATED_FILE_OBJECT name=${fileName} size=${nodeBuffer.length} bytes`);
     
-    // Set permissions so the user can read their video
-    const permissions = userId ? [Permission.read(Role.user(userId))] : [];
-    const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file, permissions);
+    // Set file permissions: public read + owner read
+    const filePermissions = [
+      Permission.read(Role.any()),
+      ...(userId ? [Permission.read(Role.user(userId))] : [])
+    ];
+    const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file, filePermissions);
     log(`✓ UPLOADED_TO_STORAGE fileId=${uploadedFile.$id}`);
 
     const appwriteUrl = `${endpoint}/storage/buckets/${BUCKET_ID}/files/${uploadedFile.$id}/view?project=${projectId}`;
 
     // Step 3: Save metadata to database
-    log('Saving video metadata to database...');
-    log(`Database: ${DATABASE_ID}, Collection: ${VIDEO_METADATA_COLLECTION}`);
-    const metadata = await databases.createDocument(
-      DATABASE_ID,
-      VIDEO_METADATA_COLLECTION,
-      ID.unique(),
-      {
-        appwrite_file_id: uploadedFile.$id,
-        url: appwriteUrl,
-        prompt: prompt || 'Untitled',
-        height: height || '720',
-        width: width || '1280',
-        duration: duration || '12',
-        sora_version: soraVersion || 'sora-1',
-        azure_video_id: azureVideoId || null,
-        user_id: userId || null,
-      },
-      permissions // Set same permissions on metadata document
-    );
+  log('Saving video metadata to database...');
+  log(`Database: ${DATABASE_ID}, Collection: ${VIDEO_METADATA_COLLECTION}`);
+  // Restrict metadata visibility to the owner only
+  const docPermissions = userId ? [Permission.read(Role.user(userId))] : [];
+  const metadata = await databases.createDocument(
+    DATABASE_ID,
+    VIDEO_METADATA_COLLECTION,
+    ID.unique(),
+    {
+      appwrite_file_id: uploadedFile.$id,
+      url: appwriteUrl,
+      prompt: prompt || 'Untitled',
+      height: height || '720',
+      width: width || '1280',
+      duration: duration || '12',
+      sora_version: soraVersion || 'sora-1',
+      azure_video_id: azureVideoId || null,
+      user_id: userId || null,
+    },
+    docPermissions
+  );
     log(`✓ METADATA_SAVED docId=${metadata.$id}`);
     log('=== INGEST VIDEO FUNCTION SUCCESS ===');
 
