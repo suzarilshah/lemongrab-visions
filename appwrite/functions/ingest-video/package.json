@@ -8,6 +8,7 @@
     "build": "echo 'No build step required'"
   },
   "dependencies": {
-    "node-appwrite": "^14.1.0"
+    "node-appwrite": "^14.1.0",
+    "web-file-polyfill": "^1.0.3"
   }
 }

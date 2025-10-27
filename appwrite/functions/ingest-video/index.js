@@ -1,4 +1,5 @@
-import { Client, Storage, Databases, ID, InputFile } from 'node-appwrite';
+import { Client, Storage, Databases, ID } from 'node-appwrite';
+import { File, Blob } from 'web-file-polyfill';
 
 const BUCKET_ID = '68f8f4c20021c88b0a89';
 const DATABASE_ID = '68fa40390030997a7a96';
@@ -63,7 +64,8 @@ export default async ({ req, res, log, error }) => {
     }
 
     const videoBuffer = await videoResponse.arrayBuffer();
-    log(`Video downloaded successfully, size: ${videoBuffer.byteLength} bytes`);
+    const bufferSize = videoBuffer.byteLength;
+    log(`✓ DOWNLOADED_FROM_AZURE size=${bufferSize} bytes`);
 
     // Step 2: Upload to Appwrite Storage
     log('Uploading video to Appwrite Storage...');
@@ -72,10 +74,13 @@ export default async ({ req, res, log, error }) => {
     // Convert ArrayBuffer to Buffer for Node.js environment
     const nodeBuffer = Buffer.from(videoBuffer);
     
-    // Use InputFile for Appwrite SDK in Node.js environment
-    const file = InputFile.fromBuffer(nodeBuffer, fileName);
+    // Create proper File object using web-file-polyfill for node-appwrite v14
+    const blob = new Blob([nodeBuffer], { type: 'video/mp4' });
+    const file = new File([blob], fileName, { type: 'video/mp4' });
+    log(`✓ CREATED_FILE_OBJECT name=${fileName} size=${nodeBuffer.length} bytes`);
+    
     const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file);
-    log(`Video uploaded to Appwrite, file ID: ${uploadedFile.$id}`);
+    log(`✓ UPLOADED_TO_STORAGE fileId=${uploadedFile.$id}`);
 
     const appwriteUrl = `${endpoint}/storage/buckets/${BUCKET_ID}/files/${uploadedFile.$id}/view?project=${projectId}`;
 
@@ -98,7 +103,7 @@ export default async ({ req, res, log, error }) => {
         user_id: userId || null,
       }
     );
-    log(`Metadata saved with document ID: ${metadata.$id}`);
+    log(`✓ METADATA_SAVED docId=${metadata.$id}`);
     log('=== INGEST VIDEO FUNCTION SUCCESS ===');
 
     return res.json({
