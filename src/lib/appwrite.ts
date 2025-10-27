@@ -9,7 +9,7 @@ export const databases = new Databases(client);
 export const storage = new Storage(client);
 export const functions = new Functions(client);
 
-export const DATABASE_ID = 'default';
+export const DATABASE_ID = '68fa40390030997a7a96';
 export const SETTINGS_COLLECTION_ID = 'settings';
 export const GENERATIONS_COLLECTION_ID = 'video_generations';
 export const PROFILES_COLLECTION_ID = 'profiles_config';
