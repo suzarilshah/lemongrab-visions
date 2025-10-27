@@ -14,11 +14,30 @@ export interface Profile {
 
 const PROFILES_COLLECTION_ID = "profiles_config";
 
+// Resolve the correct Appwrite Database ID once and cache it
+let __DB_CACHE: string | null = null;
+async function resolveDatabaseId(): Promise<string> {
+  if (__DB_CACHE) return __DB_CACHE;
+  const candidates = [DATABASE_ID, "default", "lemongrab_db"];
+  for (const id of candidates) {
+    try {
+      await databases.listDocuments(id, PROFILES_COLLECTION_ID, [Query.limit(1)]);
+      __DB_CACHE = id;
+      console.info(`[Profiles] Using Appwrite database: ${id}`);
+      return id;
+    } catch (e: any) {
+      // Try next candidate on 404 or any error
+      continue;
+    }
+  }
+  throw new Error("Appwrite Database not found. Verify database ID in src/lib/appwrite.ts or ensure a database exists.");
+}
+
 export async function getProfiles(): Promise<Profile[]> {
   try {
     const user = await account.get();
     const response = await databases.listDocuments(
-      DATABASE_ID,
+      await resolveDatabaseId(),
       PROFILES_COLLECTION_ID,
       [
         Query.equal("user_id", user.$id),
@@ -43,7 +62,7 @@ export async function getProfiles(): Promise<Profile[]> {
 export async function saveProfile(profile: Profile): Promise<void> {
   try {
     await databases.updateDocument(
-      DATABASE_ID,
+      await resolveDatabaseId(),
       PROFILES_COLLECTION_ID,
       profile.id,
       {
@@ -64,7 +83,7 @@ export async function createProfile(input: Omit<Profile, "id">): Promise<Profile
   try {
     const user = await account.get();
     const response = await databases.createDocument(
-      DATABASE_ID,
+      await resolveDatabaseId(),
       PROFILES_COLLECTION_ID,
       ID.unique(),
       {
@@ -102,7 +121,7 @@ export async function createProfile(input: Omit<Profile, "id">): Promise<Profile
 
 export async function deleteProfile(id: string): Promise<void> {
   try {
-    await databases.deleteDocument(DATABASE_ID, PROFILES_COLLECTION_ID, id);
+    await databases.deleteDocument(await resolveDatabaseId(), PROFILES_COLLECTION_ID, id);
     
     const activeProfile = await getActiveProfile();
     if (activeProfile?.id === id) {
@@ -124,7 +143,7 @@ export async function setActiveProfile(id: string): Promise<void> {
     const profiles = await getProfiles();
     for (const profile of profiles) {
       await databases.updateDocument(
-        DATABASE_ID,
+        await resolveDatabaseId(),
         PROFILES_COLLECTION_ID,
         profile.id,
         { is_active: false }
@@ -133,7 +152,7 @@ export async function setActiveProfile(id: string): Promise<void> {
 
     // Then activate the selected profile (verify it belongs to user)
     await databases.updateDocument(
-      DATABASE_ID,
+      await resolveDatabaseId(),
       PROFILES_COLLECTION_ID,
       id,
       { is_active: true }
@@ -148,7 +167,7 @@ export async function getActiveProfile(): Promise<Profile | null> {
   try {
     const user = await account.get();
     const response = await databases.listDocuments(
-      DATABASE_ID,
+      await resolveDatabaseId(),
       PROFILES_COLLECTION_ID,
       [
         Query.equal("user_id", user.$id),
