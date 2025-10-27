@@ -93,27 +93,17 @@ export default function VideoGenerationForm({
   }, [soraVersion, mode]);
 
   const loadAvailableVideos = async () => {
-    const profile = getActiveProfile();
+    const profile = await getActiveProfile();
     if (!profile) return;
     const videos = await listVideos(profile.endpoint, profile.apiKey);
     setAvailableVideos(videos.filter(v => v.status === "completed"));
   };
 
-  const loadSoraVersion = () => {
-    const profile = getActiveProfile();
+  const loadSoraVersion = async () => {
+    const profile = await getActiveProfile();
     if (profile) {
       setSoraVersion(profile.soraVersion || "sora-1");
       if (profile.soraVersion === "sora-2") {
-        setResolution("1280x720");
-        setDuration("4");
-      }
-      return;
-    }
-    const stored = localStorage.getItem("lemongrab_settings");
-    if (stored) {
-      const settings = JSON.parse(stored);
-      setSoraVersion(settings.soraVersion || "sora-1");
-      if (settings.soraVersion === "sora-2") {
         setResolution("1280x720");
         setDuration("4");
       }

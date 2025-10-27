@@ -19,18 +19,20 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
 
   const downloadWithApiKey = async (url: string) => {
     try {
-      const stored = localStorage.getItem("lemongrab_settings");
-      if (!stored) {
-        toast.error("Please configure Azure settings first");
+      const { getActiveProfile } = await import("@/lib/profiles");
+      const profile = await getActiveProfile();
+      
+      if (!profile) {
+        toast.error("Please configure your Azure settings first");
         return;
       }
-      const { apiKey } = JSON.parse(stored || '{}');
-      if (!apiKey) {
-        toast.error("Missing API key in Settings");
+      
+      if (!profile.apiKey) {
+        toast.error("Missing API key in profile settings");
         return;
       }
 
-      const res = await fetch(url, { headers: { 'api-key': apiKey } });
+      const res = await fetch(url, { headers: { 'api-key': profile.apiKey } });
       if (!res.ok) {
         const text = await res.text().catch(() => '');
         throw new Error(text || `Download failed (${res.status})`);

@@ -43,18 +43,11 @@ export default function Dashboard() {
     loadActiveProfile();
   }, []);
 
-  const loadActiveProfile = () => {
-    const profile = getActiveProfile();
+  const loadActiveProfile = async () => {
+    const profile = await getActiveProfile();
     if (profile) {
       setSoraVersion(profile.soraVersion || "sora-1");
       setActiveProfileName(profile.name);
-      return;
-    }
-    const stored = localStorage.getItem("lemongrab_settings");
-    if (stored) {
-      const settings = JSON.parse(stored);
-      setSoraVersion(settings.soraVersion || "sora-1");
-      setActiveProfileName("Default");
     }
   };
 
@@ -108,25 +101,20 @@ export default function Dashboard() {
       return;
     }
 
-    // Resolve settings from active profile or legacy settings
-    const profile = getActiveProfile();
-    let settings: any = null;
-    if (profile) {
-      settings = {
-        endpoint: profile.endpoint,
-        apiKey: profile.apiKey,
-        deployment: profile.deployment,
-        soraVersion: profile.soraVersion,
-      };
-    } else {
-      const stored = localStorage.getItem("lemongrab_settings");
-      if (!stored) {
-        toast.error("Please configure your Azure settings first");
-        navigate("/settings");
-        return;
-      }
-      settings = JSON.parse(stored);
+    // Resolve settings from active profile
+    const profile = await getActiveProfile();
+    if (!profile) {
+      toast.error("Please configure your Azure settings first");
+      navigate("/settings");
+      return;
     }
+    
+    const settings = {
+      endpoint: profile.endpoint,
+      apiKey: profile.apiKey,
+      deployment: profile.deployment,
+      soraVersion: profile.soraVersion,
+    };
     setIsGenerating(true);
     setProgress(10);
     setProgressMessage("Starting video generation...");
@@ -215,7 +203,7 @@ export default function Dashboard() {
         generationMode,
         estimatedCost,
         videoId: result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined,
-        profileName: activeProfileName || (getActiveProfile()?.name || "Default"),
+        profileName: activeProfileName || "Default",
       });
       
       setProgress(100);

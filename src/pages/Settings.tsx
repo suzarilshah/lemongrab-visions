@@ -44,10 +44,10 @@ export default function Settings() {
     }
   };
 
-  const loadProfiles = () => {
-    const list = getProfiles();
+  const loadProfiles = async () => {
+    const list = await getProfiles();
     setProfiles(list);
-    const active = getActiveProfile();
+    const active = await getActiveProfile();
     if (active) {
       setActiveProfileId(active.id);
     }

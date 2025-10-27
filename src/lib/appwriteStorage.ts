@@ -76,7 +76,7 @@ export async function uploadVideoToAppwrite(
   }
 }
 
-export async function listVideosFromAppwrite(limit: number = 6): Promise<VideoMetadata[]> {
+export async function listVideosFromAppwrite(limit: number = 100): Promise<VideoMetadata[]> {
   try {
     console.log(`[Appwrite] Fetching latest ${limit} videos from bucket:`, BUCKET_ID);
     // Use Appwrite queries to sort and limit at the API level
@@ -137,9 +137,29 @@ export async function deleteVideoFromAppwrite(fileId: string): Promise<void> {
   }
 }
 
-export function saveVideoMetadata(metadata: VideoMetadata): void {
-  const stored = localStorage.getItem("lemongrab_video_metadata");
-  const metadataMap: Record<string, VideoMetadata> = stored ? JSON.parse(stored) : {};
-  metadataMap[metadata.id] = metadata;
-  localStorage.setItem("lemongrab_video_metadata", JSON.stringify(metadataMap));
+export async function saveVideoMetadata(metadata: VideoMetadata): Promise<void> {
+  try {
+    const { databases, DATABASE_ID } = await import("@/lib/appwrite");
+    const { ID } = await import("appwrite");
+    
+    await databases.createDocument(
+      DATABASE_ID,
+      "video_metadata",
+      ID.unique(),
+      {
+        appwrite_file_id: metadata.id,
+        url: metadata.url,
+        prompt: metadata.prompt,
+        height: metadata.height,
+        width: metadata.width,
+        duration: metadata.duration,
+        sora_version: metadata.soraVersion || "sora-1",
+        azure_video_id: metadata.azureVideoId || null,
+      }
+    );
+    console.log("[Appwrite] Video metadata saved to database");
+  } catch (error: any) {
+    console.error("[Appwrite] Error saving video metadata:", error);
+    // Don't throw to avoid blocking the main flow
+  }
 }

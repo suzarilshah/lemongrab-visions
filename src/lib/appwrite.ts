@@ -12,5 +12,7 @@ export const functions = new Functions(client);
 export const DATABASE_ID = 'lemongrab_db';
 export const SETTINGS_COLLECTION_ID = 'settings';
 export const GENERATIONS_COLLECTION_ID = 'video_generations';
+export const PROFILES_COLLECTION_ID = 'profiles_config';
+export const VIDEO_METADATA_COLLECTION_ID = 'video_metadata';
 
 export { client };

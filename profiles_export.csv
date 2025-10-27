@@ -1,0 +1,41 @@
+name,endpoint,api_key,deployment,sora_version,is_active
+Default,https://your-azure-endpoint.openai.azure.com,your-api-key-here,sora-model-deployment,sora-1,true
+
+# Instructions for importing to Appwrite Database:
+# 
+# 1. In Appwrite Console, go to Databases → lemongrab_db
+# 2. Create a new collection called "profiles_config" with these attributes:
+#    - name (string, required)
+#    - endpoint (string, required)
+#    - api_key (string, required)  
+#    - deployment (string, required)
+#    - sora_version (enum: sora-1, sora-2, required)
+#    - is_active (boolean, default: false)
+#    - user_id (relationship to users collection, required)
+#
+# 3. Set permissions:
+#    - Users: Create, Read, Update, Delete (for their own documents)
+#
+# 4. Import this CSV manually or via API
+#
+# Example API import script:
+# const { databases } = require('node-appwrite');
+# const sdk = require('node-appwrite');
+#
+# const client = new sdk.Client()
+#   .setEndpoint('https://syd.cloud.appwrite.io/v1')
+#   .setProject('lemongrab')
+#   .setKey('YOUR_API_KEY');
+#
+# const db = new sdk.Databases(client);
+#
+# // Read CSV and import rows
+# db.createDocument('lemongrab_db', 'profiles_config', 'unique()', {
+#   name: 'Default',
+#   endpoint: 'https://...',
+#   api_key: 'sk-...',
+#   deployment: 'sora-model',
+#   sora_version: 'sora-1',
+#   is_active: true,
+#   user_id: 'USER_ID_HERE'
+# });
