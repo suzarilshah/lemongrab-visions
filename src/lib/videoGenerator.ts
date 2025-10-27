@@ -345,6 +345,46 @@ async function pollJobStatus(
   throw new Error('Video generation timed out after 15 minutes');
 }
 
+// Cancel a video generation job
+export async function cancelVideoJob(
+  endpoint: string,
+  apiKey: string,
+  jobId: string,
+  soraVersion: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    console.log(`[VideoGenerator] Attempting to cancel job ${jobId} with ${soraVersion}`);
+    
+    let cancelUrl: string;
+    if (soraVersion === 'sora-2') {
+      // Sora 2: DELETE /video-generator/jobs/{jobId}
+      cancelUrl = `${endpoint}/video-generator/jobs/${jobId}`;
+    } else {
+      // Sora 1: DELETE on the job endpoint
+      cancelUrl = `${endpoint}/openai/deployments/sora/generations/${jobId}`;
+    }
+
+    const response = await fetch(cancelUrl, {
+      method: 'DELETE',
+      headers: {
+        'api-key': apiKey,
+      },
+    });
+
+    if (response.ok) {
+      console.log(`[VideoGenerator] Job ${jobId} canceled successfully`);
+      return { success: true, message: 'Job canceled successfully' };
+    } else {
+      const errorText = await response.text();
+      console.warn(`[VideoGenerator] Cancel request returned ${response.status}: ${errorText}`);
+      return { success: false, message: `Cancel failed: ${response.status}` };
+    }
+  } catch (error: any) {
+    console.error('[VideoGenerator] Cancel error:', error);
+    return { success: false, message: error.message || 'Cancel failed' };
+  }
+}
+
 // Fetch list of videos from Azure API
 export async function listVideos(
   endpoint: string,

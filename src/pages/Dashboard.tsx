@@ -116,6 +116,32 @@ export default function Dashboard() {
       abortControllerRef.current = null;
     }
 
+    // Try to cancel with Azure if we have the necessary info
+    if (activeGeneration) {
+      try {
+        const { getActiveProfile } = await import('@/lib/profiles');
+        const activeProfile = await getActiveProfile();
+        
+        if (activeProfile?.endpoint && activeProfile?.apiKey) {
+          const { cancelVideoJob } = await import('@/lib/videoGenerator');
+          const result = await cancelVideoJob(
+            activeProfile.endpoint,
+            activeProfile.apiKey,
+            currentJobId,
+            activeGeneration.soraModel
+          );
+          
+          if (result.success) {
+            console.log('[Dashboard] Job canceled with Azure successfully');
+          } else {
+            console.warn('[Dashboard] Azure cancel failed:', result.message);
+          }
+        }
+      } catch (error) {
+        console.error('[Dashboard] Error canceling with Azure:', error);
+      }
+    }
+
     // Update DB
     await updateGenerationStatus(currentJobId, 'canceled');
     
