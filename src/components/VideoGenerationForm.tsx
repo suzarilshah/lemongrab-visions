@@ -43,12 +43,8 @@ const RESOLUTIONS = [
 ];
 
 const SORA2_RESOLUTIONS = [
-  { value: "480x480", label: "480x480 (Square)" },
-  { value: "854x480", label: "854x480 (Landscape)" },
-  { value: "720x720", label: "720x720 (Square)" },
+  { value: "720x1280", label: "720x1280 (Portrait)" },
   { value: "1280x720", label: "1280x720 (Landscape)" },
-  { value: "1080x1080", label: "1080x1080 (Square)" },
-  { value: "1920x1080", label: "1920x1080 (Landscape)" },
 ];
 
 // Sora 2 Image-to-Video only supports these two resolutions
@@ -61,6 +57,7 @@ const SORA2_DURATIONS = [
   { value: "4", label: "4 seconds" },
   { value: "8", label: "8 seconds" },
   { value: "12", label: "12 seconds" },
+  { value: "20", label: "20 seconds" },
 ];
 
 export default function VideoGenerationForm({

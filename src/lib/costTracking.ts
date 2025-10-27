@@ -1,5 +1,5 @@
 import { databases, DATABASE_ID, GENERATIONS_COLLECTION_ID } from "@/lib/appwrite";
-import { ID } from "appwrite";
+import { ID, Query } from "appwrite";
 
 interface GenerationData {
   prompt: string;
@@ -11,7 +11,10 @@ interface GenerationData {
   estimatedCost: number;
   videoId?: string;
   profileName?: string;
+  status?: string; // queued | running | completed | failed | canceled
+  jobId?: string;
 }
+
 
 export function calculateCost(
   width: string,
@@ -54,6 +57,8 @@ export async function saveGenerationRecord(data: GenerationData): Promise<void> 
         estimatedCost: data.estimatedCost,
         videoId: data.videoId || null,
         profileName: data.profileName || null,
+        status: data.status || null,
+        jobId: data.jobId || null,
       }
     );
     console.log("[CostTracking] Generation record saved successfully");
@@ -62,3 +67,84 @@ export async function saveGenerationRecord(data: GenerationData): Promise<void> 
     // Don't throw error to avoid blocking the main flow
   }
 }
+
+export async function upsertGenerationRecord(data: Required<Pick<GenerationData, 'jobId'>> & GenerationData): Promise<void> {
+  try {
+    if (!data.jobId) return;
+    const list = await databases.listDocuments(
+      DATABASE_ID,
+      GENERATIONS_COLLECTION_ID,
+      [Query.equal('jobId', data.jobId)]
+    );
+
+    if (list.documents.length === 0) {
+      await saveGenerationRecord(data);
+      return;
+    }
+
+    const doc = list.documents[0] as any;
+    await databases.updateDocument(
+      DATABASE_ID,
+      GENERATIONS_COLLECTION_ID,
+      doc.$id,
+      {
+        ...doc,
+        prompt: data.prompt ?? doc.prompt,
+        soraModel: data.soraModel ?? doc.soraModel,
+        duration: data.duration ?? doc.duration,
+        resolution: data.resolution ?? doc.resolution,
+        variants: data.variants ?? doc.variants,
+        generationMode: data.generationMode ?? doc.generationMode,
+        estimatedCost: data.estimatedCost ?? doc.estimatedCost,
+        videoId: data.videoId ?? doc.videoId ?? null,
+        profileName: data.profileName ?? doc.profileName ?? null,
+        status: data.status ?? doc.status ?? null,
+        jobId: data.jobId,
+      }
+    );
+    console.log("[CostTracking] Generation record upserted (update)");
+  } catch (error: any) {
+    console.error("[CostTracking] Failed to upsert generation record:", error);
+  }
+}
+
+export async function updateGenerationStatus(jobId: string, status: string, patch?: Partial<GenerationData>): Promise<void> {
+  try {
+    const list = await databases.listDocuments(
+      DATABASE_ID,
+      GENERATIONS_COLLECTION_ID,
+      [Query.equal('jobId', jobId)]
+    );
+    if (list.documents.length === 0) {
+      console.warn('[CostTracking] updateGenerationStatus: no record for jobId', jobId);
+      return;
+    }
+    const doc = list.documents[0] as any;
+    await databases.updateDocument(
+      DATABASE_ID,
+      GENERATIONS_COLLECTION_ID,
+      doc.$id,
+      {
+        status,
+        ...(patch || {}),
+      }
+    );
+  } catch (error) {
+    console.error('[CostTracking] Failed to update generation status', error);
+  }
+}
+
+export async function fetchActiveGeneration(): Promise<any | null> {
+  try {
+    const res = await databases.listDocuments(
+      DATABASE_ID,
+      GENERATIONS_COLLECTION_ID,
+      [Query.contains('status', ['queued','running']), Query.orderDesc('$createdAt'), Query.limit(1)]
+    );
+    return res.documents[0] || null;
+  } catch (e) {
+    console.error('[CostTracking] fetchActiveGeneration error', e);
+    return null;
+  }
+}
+

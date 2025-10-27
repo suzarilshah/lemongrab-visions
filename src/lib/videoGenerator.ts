@@ -52,7 +52,7 @@ interface VideoJob {
   error?: string;
 }
 
-export async function generateVideo(params: VideoGenerationParams): Promise<{ blob: Blob; videoId?: string }> {
+export async function generateVideo(params: VideoGenerationParams, controller?: AbortController): Promise<{ blob: Blob; videoId?: string }> {
   const { 
     prompt, 
     duration = 12, 
@@ -199,7 +199,8 @@ async function pollJobStatus(
   apiKey: string,
   onProgress?: (status: string) => void,
   statusUrlOverride?: string,
-  isSora2: boolean = false
+  isSora2: boolean = false,
+  controller?: AbortController,
 ): Promise<Blob> {
   const maxAttempts = 180; // 15 minutes max (progressive backoff)
   let attempts = 0;
@@ -233,6 +234,7 @@ async function pollJobStatus(
       headers: {
         'api-key': apiKey,
       },
+      signal: controller?.signal,
     });
     try {
       const preview = await response.clone().text();
