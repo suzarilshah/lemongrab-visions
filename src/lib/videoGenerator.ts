@@ -52,7 +52,7 @@ interface VideoJob {
   error?: string;
 }
 
-export async function generateVideo(params: VideoGenerationParams, controller?: AbortController): Promise<{ blob: Blob; videoId?: string }> {
+export async function generateVideo(params: VideoGenerationParams, controller?: AbortController): Promise<{ blob: Blob; videoId?: string; downloadUrl?: string }> {
   const { 
     prompt, 
     duration = 12, 
@@ -189,8 +189,8 @@ export async function generateVideo(params: VideoGenerationParams, controller?: 
   onProgress?.("Job created. Waiting for processing...");
 
   // Poll for completion and get video
-  const videoBlob = await pollJobStatus(jobId, endpoint, apiKey, onProgress, opLoc || undefined, isSora2);
-  return { blob: videoBlob, videoId: jobId };
+  const { blob: videoBlob, downloadUrl } = await pollJobStatus(jobId, endpoint, apiKey, onProgress, opLoc || undefined, isSora2);
+  return { blob: videoBlob, videoId: jobId, downloadUrl };
 }
 
 async function pollJobStatus(
@@ -201,7 +201,7 @@ async function pollJobStatus(
   statusUrlOverride?: string,
   isSora2: boolean = false,
   controller?: AbortController,
-): Promise<Blob> {
+): Promise<{ blob: Blob; downloadUrl: string }> {
   const maxAttempts = 180; // 15 minutes max (progressive backoff)
   let attempts = 0;
   const baseDelayMs = 3000;
@@ -316,7 +316,7 @@ async function pollJobStatus(
       }
 
       const videoBlob = await videoResponse.blob();
-      return videoBlob;
+      return { blob: videoBlob, downloadUrl: videoUrl };
     }
 
       if (job.status === 'failed') {
@@ -347,9 +347,9 @@ async function pollJobStatus(
 
 // Cancel a video generation job
 export async function cancelVideoJob(
+  jobId: string,
   endpoint: string,
   apiKey: string,
-  jobId: string,
   soraVersion: string
 ): Promise<{ success: boolean; message: string }> {
   try {

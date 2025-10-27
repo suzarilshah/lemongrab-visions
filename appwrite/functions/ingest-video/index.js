@@ -19,6 +19,11 @@ export default async ({ req, res, log, error }) => {
   try {
     const { videoUrl, apiKey, prompt, height, width, duration, soraVersion, azureVideoId, userId } = JSON.parse(req.body);
 
+    log('=== INGEST VIDEO FUNCTION START ===');
+    log(`Received params: videoUrl=${videoUrl}`);
+    log(`Azure Video ID: ${azureVideoId}, User ID: ${userId}`);
+    log(`Video specs: ${width}x${height}, ${duration}s, Sora version: ${soraVersion}`);
+
     if (!videoUrl || !apiKey) {
       error('Missing required parameters: videoUrl and apiKey');
       return res.json({ error: 'Missing required parameters' }, 400, corsHeaders);
@@ -37,15 +42,19 @@ export default async ({ req, res, log, error }) => {
 
     // Step 1: Download video from Azure
     log('Downloading video from Azure...');
+    log(`Using API key: ${apiKey.substring(0, 10)}...`);
     const videoResponse = await fetch(videoUrl, {
       headers: { 'api-key': apiKey },
     });
 
+    log(`Azure response status: ${videoResponse.status}`);
+    
     if (!videoResponse.ok) {
       const errorText = await videoResponse.text();
       error(`Failed to download video: ${videoResponse.status} ${errorText}`);
       return res.json({ 
-        error: `Failed to download video from Azure: ${videoResponse.status}` 
+        error: `Failed to download video from Azure: ${videoResponse.status}`,
+        details: errorText 
       }, 500, corsHeaders);
     }
 
@@ -67,6 +76,7 @@ export default async ({ req, res, log, error }) => {
 
     // Step 3: Save metadata to database
     log('Saving video metadata to database...');
+    log(`Database: ${DATABASE_ID}, Collection: ${VIDEO_METADATA_COLLECTION}`);
     const metadata = await databases.createDocument(
       DATABASE_ID,
       VIDEO_METADATA_COLLECTION,
@@ -84,6 +94,7 @@ export default async ({ req, res, log, error }) => {
       }
     );
     log(`Metadata saved with document ID: ${metadata.$id}`);
+    log('=== INGEST VIDEO FUNCTION SUCCESS ===');
 
     return res.json({
       success: true,
@@ -93,7 +104,9 @@ export default async ({ req, res, log, error }) => {
     }, 200, corsHeaders);
 
   } catch (err) {
-    error('Error in ingest-video function:', err.message);
+    error('=== INGEST VIDEO FUNCTION ERROR ===');
+    error('Error details:', err.message);
+    error('Stack trace:', err.stack);
     return res.json({ 
       error: err.message || 'Failed to ingest video' 
     }, 500, corsHeaders);

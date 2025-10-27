@@ -299,8 +299,15 @@ export default function Dashboard() {
           console.warn('[Dashboard] Could not get user ID:', e);
         }
 
-        // Use the directVideoUrl that was set in the onProgress callback
-        const videoUrl = directVideoUrl || `${settings.endpoint}/video-generator/videos/${videoIdFinal}`;
+        // Use the downloadUrl from the result (returned directly from generateVideo)
+        const videoUrl = result.downloadUrl;
+        
+        if (!videoUrl) {
+          console.error('[Dashboard] No download URL available from video generation');
+          throw new Error('Video generation completed but download URL is missing');
+        }
+
+        console.log('[Dashboard] Using download URL:', videoUrl);
 
         // Get the active profile to use its API key for downloading
         const activeProfile = await getActiveProfile();
