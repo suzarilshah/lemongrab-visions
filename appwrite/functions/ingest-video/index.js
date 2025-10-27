@@ -1,4 +1,4 @@
-import { Client, Storage, Databases, ID } from 'node-appwrite';
+import { Client, Storage, Databases, ID, InputFile } from 'node-appwrite';
 
 const BUCKET_ID = '68f8f4c20021c88b0a89';
 const DATABASE_ID = '68fa40390030997a7a96';
@@ -72,8 +72,9 @@ export default async ({ req, res, log, error }) => {
     // Convert ArrayBuffer to Buffer for Node.js environment
     const nodeBuffer = Buffer.from(videoBuffer);
     
-    // Upload buffer directly (no InputFile needed in Node SDK v14)
-    const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), nodeBuffer);
+    // Use InputFile for Appwrite SDK in Node.js environment
+    const file = InputFile.fromBuffer(nodeBuffer, fileName);
+    const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file);
     log(`Video uploaded to Appwrite, file ID: ${uploadedFile.$id}`);
 
     const appwriteUrl = `${endpoint}/storage/buckets/${BUCKET_ID}/files/${uploadedFile.$id}/view?project=${projectId}`;
