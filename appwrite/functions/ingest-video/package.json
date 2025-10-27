@@ -4,6 +4,9 @@
   "description": "Download video from Azure and store in Appwrite",
   "main": "index.js",
   "type": "module",
+  "scripts": {
+    "build": "echo 'No build step required'"
+  },
   "dependencies": {
     "node-appwrite": "^14.1.0"
   }
