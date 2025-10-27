@@ -1,0 +1,11 @@
+project_id = "lemongrab"
+
+[functions.ingest-video]
+runtime = "node-18.0"
+entrypoint = "index.js"
+execute = []
+events = []
+schedule = ""
+timeout = 900
+enabled = true
+logging = true

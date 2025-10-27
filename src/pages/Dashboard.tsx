@@ -92,9 +92,12 @@ export default function Dashboard() {
   };
 
   const loadVideos = async () => {
-    // Fetch only the latest 6 videos
-    const videoList = await listVideosFromAppwrite(6);
-    setVideos(videoList);
+    try {
+      const videoList = await listVideosFromAppwrite(6);
+      setVideos(videoList);
+    } catch (error) {
+      console.error('[Dashboard] Failed to load videos:', error);
+    }
   };
 
   const handleLogout = async () => {
@@ -278,26 +281,81 @@ export default function Dashboard() {
       }, abortControllerRef.current);
 
       setProgress(95);
-      setProgressMessage("Uploading to storage...");
+      setProgressMessage("Saving to library...");
 
       const videoIdFinal = result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined;
 
-      const metadata = await uploadVideoToAppwrite(
-        result.blob,
-        params.prompt,
-        params.height,
-        params.width,
-        params.duration.toString(),
-        soraVersion,
-        videoIdFinal
-      );
-      await loadVideos();
+      // Ingest video via Appwrite function (downloads from Azure, stores in Appwrite)
+      try {
+        console.log('[Dashboard] Calling ingest-video function...');
+        const { functions } = await import('@/lib/appwrite');
+        
+        // Get current user ID
+        let userId = null;
+        try {
+          const currentUser = await account.get();
+          userId = currentUser.$id;
+        } catch (e) {
+          console.warn('[Dashboard] Could not get user ID:', e);
+        }
 
-      // Update generation record with completion
-      if (jobId) {
-        await updateGenerationStatus(jobId, 'completed', { videoId: videoIdFinal });
-      } else {
-        // Fallback: save new record if jobId wasn't captured
+        // Use the directVideoUrl that was set in the onProgress callback
+        const videoUrl = directVideoUrl || `${settings.endpoint}/video-generator/videos/${videoIdFinal}`;
+
+        const ingestResult = await functions.createExecution(
+          'ingest-video',
+          JSON.stringify({
+            videoUrl,
+            apiKey: settings.apiKey,
+            prompt: params.prompt,
+            height: params.height,
+            width: params.width,
+            duration: String(params.duration),
+            soraVersion: settings.soraVersion || soraVersion,
+            azureVideoId: videoIdFinal,
+            userId,
+          }),
+          false
+        );
+
+        console.log('[Dashboard] Ingest function result:', ingestResult);
+        
+        const ingestData = JSON.parse(ingestResult.responseBody);
+        if (ingestData.success) {
+          toast.success("Video saved to your library");
+          
+          // Update generation record with videoId
+          if (jobId) {
+            await updateGenerationStatus(jobId, 'completed', ingestData.fileId);
+          }
+          
+          // Reload videos to show the new one
+          await loadVideos();
+        } else {
+          throw new Error(ingestData.error || 'Ingest failed');
+        }
+      } catch (uploadError: any) {
+        console.error("[Dashboard] Video ingest error:", uploadError);
+        toast.error(uploadError.message || "Failed to save video to library");
+        
+        // Still record generation even if ingest fails
+        if (!jobId) {
+          await saveGenerationRecord({
+            prompt: params.prompt,
+            soraModel: settings.soraVersion || soraVersion,
+            duration: params.duration,
+            resolution: `${params.width}x${params.height}`,
+            variants: parseInt(params.variants),
+            generationMode,
+            estimatedCost,
+            videoId: null,
+            profileName: activeProfileName || 'default',
+          });
+        }
+      }
+
+      // Update generation record with completion (fallback if jobId wasn't captured)
+      if (!jobId) {
         await saveGenerationRecord({
           prompt: params.prompt,
           soraModel: settings.soraVersion || soraVersion,

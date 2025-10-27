@@ -51,25 +51,12 @@ export default function Gallery() {
     }
   };
 
-  const downloadWithApiKey = async (url: string) => {
+  const downloadVideo = async (url: string) => {
     try {
-      const { getActiveProfile } = await import("@/lib/profiles");
-      const profile = await getActiveProfile();
-      
-      if (!profile) {
-        toast.error("Please configure your Azure settings first");
-        return;
-      }
-      
-      if (!profile.apiKey) {
-        toast.error("Missing API key in profile settings");
-        return;
-      }
-
-      const res = await fetch(url, { headers: { 'api-key': profile.apiKey } });
+      // For Appwrite-stored videos, download directly without API key
+      const res = await fetch(url);
       if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(text || `Download failed (${res.status})`);
+        throw new Error(`Download failed (${res.status})`);
       }
       const blob = await res.blob();
       const href = URL.createObjectURL(blob);
@@ -150,7 +137,7 @@ export default function Gallery() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => downloadWithApiKey(video.url)}
+                        onClick={() => downloadVideo(video.url)}
                       >
                         <Download className="h-4 w-4 mr-1" />
                         Download

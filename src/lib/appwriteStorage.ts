@@ -78,28 +78,34 @@ export async function uploadVideoToAppwrite(
 
 export async function listVideosFromAppwrite(limit: number = 100): Promise<VideoMetadata[]> {
   try {
-    console.log(`[Appwrite] Fetching latest ${limit} videos from bucket:`, BUCKET_ID);
-    // Use Appwrite queries to sort and limit at the API level
-    const response = await storage.listFiles(BUCKET_ID, [
-      Query.orderDesc('$createdAt'),
-      Query.limit(limit),
-    ]);
+    console.log(`[Appwrite] Fetching latest ${limit} videos from video_metadata collection`);
+    const { databases, DATABASE_ID } = await import("@/lib/appwrite");
+    
+    // Fetch from video_metadata collection instead of storage bucket directly
+    const response = await databases.listDocuments(
+      DATABASE_ID,
+      "video_metadata",
+      [
+        Query.orderDesc('$createdAt'),
+        Query.limit(limit),
+      ]
+    );
 
-    console.log("[Appwrite] Retrieved", response.files.length, "videos");
+    console.log("[Appwrite] Retrieved", response.documents.length, "videos");
 
-    // Map files to uniform metadata; we don't rely on localStorage anymore
-    const videos: VideoMetadata[] = response.files.map((file) => ({
-      id: file.$id,
-      url: `https://syd.cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID}/files/${file.$id}/view?project=lemongrab`,
-      prompt: (file.name || '').replace(/\.mp4$/i, '') || 'Untitled',
-      timestamp: file.$createdAt,
-      height: '720',
-      width: '1280',
-      duration: '12',
-      soraVersion: 'sora-1',
+    // Map documents to VideoMetadata
+    const videos: VideoMetadata[] = response.documents.map((doc) => ({
+      id: doc.appwrite_file_id || doc.$id,
+      url: doc.url || `https://syd.cloud.appwrite.io/v1/storage/buckets/${BUCKET_ID}/files/${doc.appwrite_file_id}/view?project=lemongrab`,
+      prompt: doc.prompt || 'Untitled',
+      timestamp: doc.$createdAt,
+      height: doc.height || '720',
+      width: doc.width || '1280',
+      duration: doc.duration || '12',
+      soraVersion: doc.sora_version || 'sora-1',
+      azureVideoId: doc.azure_video_id || undefined,
     }));
 
-    // Already ordered desc (latest first). Return as-is.
     return videos;
   } catch (error: any) {
     console.error("[Appwrite] List error details:", {
