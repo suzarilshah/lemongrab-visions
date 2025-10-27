@@ -9,3 +9,14 @@ schedule = ""
 timeout = 900
 enabled = true
 logging = true
+
+[functions.fix-video-permissions]
+runtime = "node-18.0"
+entrypoint = "index.js"
+execute = []
+events = []
+schedule = ""
+timeout = 300
+enabled = true
+logging = true
+verify_jwt = false

@@ -1,16 +1,17 @@
 import { useState, useEffect } from "react";
-import { account } from "@/lib/appwrite";
+import { account, functions } from "@/lib/appwrite";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { ArrowLeft, KeyRound, ChevronDown } from "lucide-react";
+import { ArrowLeft, KeyRound, ChevronDown, RefreshCw } from "lucide-react";
 import { getProfiles, saveProfile, createProfile, deleteProfile, setActiveProfile, getActiveProfile, type Profile, type SoraVersion } from "@/lib/profiles";
 import { useNavigate } from "react-router-dom";
 import ProfilesList from "@/components/ProfilesList";
 import ProfileEditor from "@/components/ProfileEditor";
+import { ExecutionMethod } from "appwrite";
 
 export default function Settings() {
   const navigate = useNavigate();
@@ -29,6 +30,11 @@ export default function Settings() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [passwordSectionOpen, setPasswordSectionOpen] = useState(false);
+
+  // Migration state
+  const [isMigrating, setIsMigrating] = useState(false);
+  const [migrationSectionOpen, setMigrationSectionOpen] = useState(false);
+  const [migrationResults, setMigrationResults] = useState<any>(null);
 
   useEffect(() => {
     checkAuth();
@@ -127,6 +133,37 @@ export default function Settings() {
       toast.error(error.message || "Failed to update password");
     } finally {
       setIsResettingPassword(false);
+    }
+  };
+
+  const handleFixVideoPermissions = async () => {
+    setIsMigrating(true);
+    setMigrationResults(null);
+    
+    try {
+      toast.info("Starting video permissions migration...");
+      
+      const response = await functions.createExecution(
+        'fix-video-permissions',
+        '',
+        false,
+        '/',
+        ExecutionMethod.POST
+      );
+
+      const result = JSON.parse(response.responseBody);
+      
+      if (result.success) {
+        setMigrationResults(result.results);
+        toast.success(`Migration complete! Updated ${result.results.updated} videos, ${result.results.alreadyPublic} already public.`);
+      } else {
+        toast.error(result.error || "Migration failed");
+      }
+    } catch (error: any) {
+      console.error("Migration error:", error);
+      toast.error(error.message || "Failed to run migration");
+    } finally {
+      setIsMigrating(false);
     }
   };
 
@@ -237,6 +274,57 @@ export default function Settings() {
                     {isResettingPassword ? "Updating..." : "Update Password"}
                   </Button>
                 </form>
+              </CardContent>
+            </CollapsibleContent>
+          </Card>
+        </Collapsible>
+
+        {/* Video Permissions Migration Section (Collapsible) */}
+        <Collapsible open={migrationSectionOpen} onOpenChange={setMigrationSectionOpen}>
+          <Card>
+            <CollapsibleTrigger asChild>
+              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-xl">Fix Video Permissions</CardTitle>
+                    <CardDescription>One-time migration to fix existing video access</CardDescription>
+                  </div>
+                  <ChevronDown
+                    className={`h-5 w-5 transition-transform ${migrationSectionOpen ? "rotate-180" : ""}`}
+                  />
+                </div>
+              </CardHeader>
+            </CollapsibleTrigger>
+
+            <CollapsibleContent>
+              <CardContent className="pt-0 space-y-4">
+                <p className="text-sm text-muted-foreground">
+                  If you have existing videos that cannot be viewed or downloaded, run this migration to add public read permissions.
+                  This is safe to run multiple times.
+                </p>
+
+                <Button 
+                  onClick={handleFixVideoPermissions} 
+                  className="w-full" 
+                  disabled={isMigrating}
+                >
+                  <RefreshCw className={`mr-2 h-4 w-4 ${isMigrating ? "animate-spin" : ""}`} />
+                  {isMigrating ? "Running Migration..." : "Fix Video Permissions"}
+                </Button>
+
+                {migrationResults && (
+                  <div className="p-4 bg-muted rounded-md space-y-2">
+                    <p className="text-sm font-medium">Migration Results:</p>
+                    <ul className="text-sm space-y-1">
+                      <li>✓ Processed: {migrationResults.processed} files</li>
+                      <li>✓ Updated: {migrationResults.updated} files</li>
+                      <li>✓ Already public: {migrationResults.alreadyPublic} files</li>
+                      {migrationResults.errors.length > 0 && (
+                        <li className="text-destructive">✗ Errors: {migrationResults.errors.length}</li>
+                      )}
+                    </ul>
+                  </div>
+                )}
               </CardContent>
             </CollapsibleContent>
           </Card>
