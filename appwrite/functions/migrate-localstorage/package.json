@@ -5,7 +5,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "build": "echo 'No build step required'"
   },
   "dependencies": {
     "node-appwrite": "^14.1.0"
