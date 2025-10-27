@@ -1,4 +1,4 @@
-import { Client, Storage, Databases, ID } from 'node-appwrite';
+import { Client, Storage, Databases, ID, Permission, Role } from 'node-appwrite';
 import { File, Blob } from 'web-file-polyfill';
 
 const BUCKET_ID = '68f8f4c20021c88b0a89';
@@ -79,7 +79,9 @@ export default async ({ req, res, log, error }) => {
     const file = new File([blob], fileName, { type: 'video/mp4' });
     log(`✓ CREATED_FILE_OBJECT name=${fileName} size=${nodeBuffer.length} bytes`);
     
-    const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file);
+    // Set permissions so the user can read their video
+    const permissions = userId ? [Permission.read(Role.user(userId))] : [];
+    const uploadedFile = await storage.createFile(BUCKET_ID, ID.unique(), file, permissions);
     log(`✓ UPLOADED_TO_STORAGE fileId=${uploadedFile.$id}`);
 
     const appwriteUrl = `${endpoint}/storage/buckets/${BUCKET_ID}/files/${uploadedFile.$id}/view?project=${projectId}`;
@@ -101,7 +103,8 @@ export default async ({ req, res, log, error }) => {
         sora_version: soraVersion || 'sora-1',
         azure_video_id: azureVideoId || null,
         user_id: userId || null,
-      }
+      },
+      permissions // Set same permissions on metadata document
     );
     log(`✓ METADATA_SAVED docId=${metadata.$id}`);
     log('=== INGEST VIDEO FUNCTION SUCCESS ===');
