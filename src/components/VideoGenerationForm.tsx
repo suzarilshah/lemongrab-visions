@@ -6,13 +6,14 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Play, Upload, Sparkles } from "lucide-react";
+import { Play, Upload, Sparkles, Mic, MicOff } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import PriceEstimator from "@/components/PriceEstimator";
 import { listVideos } from "@/lib/videoGenerator";
 import { getActiveProfile } from "@/lib/profiles";
 import { toast } from "sonner";
 import PromptBuilderModal from "@/components/PromptBuilderModal";
+import { useSpeechToText } from "@/hooks/useSpeechToText";
 
 interface VideoGenerationFormProps {
   onGenerate: (params: {
@@ -77,6 +78,7 @@ export default function VideoGenerationForm({
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [availableVideos, setAvailableVideos] = useState<Array<{ id: string; status: string; model: string }>>([]);
   const [showPromptBuilder, setShowPromptBuilder] = useState(false);
+  const { isListening, startListening, stopListening } = useSpeechToText();
 
   useEffect(() => {
     loadSoraVersion();
@@ -109,6 +111,16 @@ export default function VideoGenerationForm({
 
   const [width, height] = resolution.split("x");
   const [remixVideoId, setRemixVideoId] = useState("");
+
+  const handleSpeechToText = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      startListening((transcript) => {
+        setPrompt(transcript);
+      });
+    }
+  };
 
   const handleSubmit = async () => {
     await onGenerate({
@@ -207,17 +219,39 @@ export default function VideoGenerationForm({
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="prompt">Video Prompt</Label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setShowPromptBuilder(true)}
-              disabled={isGenerating}
-              className="gap-1"
-            >
-              <Sparkles className="h-4 w-4" />
-              Generate Prompt
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleSpeechToText}
+                disabled={isGenerating}
+                className={`gap-1 ${isListening ? 'bg-destructive/10 border-destructive' : ''}`}
+              >
+                {isListening ? (
+                  <>
+                    <MicOff className="h-4 w-4" />
+                    Stop Recording
+                  </>
+                ) : (
+                  <>
+                    <Mic className="h-4 w-4" />
+                    Voice Input
+                  </>
+                )}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowPromptBuilder(true)}
+                disabled={isGenerating}
+                className="gap-1"
+              >
+                <Sparkles className="h-4 w-4" />
+                Generate Prompt
+              </Button>
+            </div>
           </div>
           <Textarea
             id="prompt"
@@ -225,13 +259,18 @@ export default function VideoGenerationForm({
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             className="min-h-[120px] glass border-primary/20 resize-none"
-            disabled={isGenerating}
+            disabled={isGenerating || isListening}
           />
           <p className="text-xs text-muted-foreground">
             For best results, describe shot type, subject, action, setting, and lighting.
             <br />
             <strong>Example:</strong> "Wide shot of a child flying a red kite in a grassy park, golden hour sunlight, camera slowly pans upward."
           </p>
+          {isListening && (
+            <p className="text-xs text-primary font-medium animate-pulse">
+              🎤 Listening... Speak in English or Bahasa Melayu
+            </p>
+          )}
         </div>
 
         <PromptBuilderModal
