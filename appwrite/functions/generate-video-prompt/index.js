@@ -163,9 +163,18 @@ Your Correct Output: "A cinematic medium shot tracks a small, futuristic deliver
 
 Now generate the prompt based on the user inputs provided above.`;
 
-    // Call GPT-5 API
-    const apiEndpoint = 'https://flowfi.cognitiveservices.azure.com/openai/deployments/gpt-5/chat/completions?api-version=2025-01-01-preview';
-    const apiKey = '9zMZdd9AnkTcDvxT6MnDYfPopybq0Pydkwv6ihDRURqUTwWC5QlMJQQJ99BIACYeBjFXJ3w3AAAAACOGUgI4';
+    // Call GPT-5 API - Read credentials from environment variables
+    const apiEndpoint = process.env.AZURE_OPENAI_GPT_ENDPOINT || 'https://flowfi.cognitiveservices.azure.com/openai/deployments/gpt-5/chat/completions?api-version=2025-01-01-preview';
+    const apiKey = process.env.AZURE_OPENAI_GPT_KEY;
+
+    if (!apiKey) {
+      error('AZURE_OPENAI_GPT_KEY environment variable is not set');
+      return res.json(
+        { error: 'Server configuration error: Missing API key' },
+        500,
+        corsHeaders
+      );
+    }
 
     const response = await fetch(apiEndpoint, {
       method: 'POST',
