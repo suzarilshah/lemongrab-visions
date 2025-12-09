@@ -31,7 +31,7 @@
     {
       "parameters": {
         "operation": "executeQuery",
-        "query": "INSERT INTO movie_jobs (movie_id, n8n_execution_id, status, started_at) VALUES ('{{ $json.movie_id }}', '{{ $execution.id }}', 'processing', NOW()) RETURNING id",
+        "query": "INSERT INTO movie_jobs (movie_id, n8n_execution_id, status, started_at) VALUES ('{{ $('Movie Generation Webhook').item.json.movie_id }}', '{{ $execution.id }}', 'processing', NOW()) RETURNING id",
         "options": {}
       },
       "id": "create-job-record",
