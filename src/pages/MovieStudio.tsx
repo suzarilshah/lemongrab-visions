@@ -160,10 +160,14 @@ export default function MovieStudio() {
 
     try {
       // 1. Create movie project in database
+      // Use a proper UUID for user_id - if user has non-UUID id (migrated from Appwrite), generate a new UUID
+      const isValidUUID = user?.id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(user.id);
+      const userId = isValidUUID ? user.id : crypto.randomUUID();
+
       const projectResult = await sql`
         INSERT INTO movie_projects (user_id, title, script, style_preferences, status, total_scenes)
         VALUES (
-          ${user?.id || 'anonymous'},
+          ${userId}::uuid,
           ${title},
           ${script},
           ${JSON.stringify({ style, mood, voice: selectedVoice, includeVoiceover })},
