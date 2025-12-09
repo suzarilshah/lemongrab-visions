@@ -1,29 +1,28 @@
 /**
  * Webhook Handler: Movie Generation Complete
+ * Vercel Edge Function
  *
  * Called by n8n when movie generation completes successfully.
- * Updates the database and can trigger notifications.
- *
  * Endpoint: POST /api/webhook/movie-complete
- *
- * Deploy this as a Vercel serverless function or similar.
  */
 
 import { neon } from '@neondatabase/serverless';
+
+export const config = {
+  runtime: 'edge',
+};
 
 const DATABASE_URL = process.env.DATABASE_URL ||
   'postgresql://neondb_owner:npg_HzwxYc0l7bUG@ep-rough-base-a8o696s7-pooler.eastus2.azure.neon.tech/neondb?sslmode=require';
 
 const WEBHOOK_SECRET = process.env.N8N_WEBHOOK_SECRET || 'octo-n8n-webhook-secret-2024';
 
-const sql = neon(DATABASE_URL);
-
 interface MovieCompletePayload {
   movie_id: string;
   status: 'completed';
   final_video_url: string;
-  download_url: string;
-  completed_at: string;
+  download_url?: string;
+  completed_at?: string;
 }
 
 export default async function handler(req: Request): Promise<Response> {
@@ -46,11 +45,11 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
+    const sql = neon(DATABASE_URL);
     const payload: MovieCompletePayload = await req.json();
 
     console.log('Movie complete webhook received:', payload);
 
-    // Validate required fields
     if (!payload.movie_id || !payload.final_video_url) {
       return new Response(JSON.stringify({ error: 'Missing required fields' }), {
         status: 400,
@@ -58,28 +57,19 @@ export default async function handler(req: Request): Promise<Response> {
       });
     }
 
-    // Update movie project in database
+    // Update movie project
     await sql`
       UPDATE movie_projects
-      SET
-        status = 'completed',
-        final_video_url = ${payload.final_video_url},
-        updated_at = CURRENT_TIMESTAMP
-      WHERE id = ${payload.movie_id}
+      SET status = 'completed', final_video_url = ${payload.final_video_url}, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ${payload.movie_id}::uuid
     `;
 
-    // Update the associated job record
+    // Update job record
     await sql`
       UPDATE movie_jobs
-      SET
-        status = 'completed',
-        progress = 100,
-        current_step = 'Completed',
-        completed_at = CURRENT_TIMESTAMP
-      WHERE movie_id = ${payload.movie_id}
+      SET status = 'completed', progress = 100, current_step = 'Completed', completed_at = CURRENT_TIMESTAMP
+      WHERE movie_id = ${payload.movie_id}::uuid
     `;
-
-    console.log(`Movie ${payload.movie_id} marked as completed`);
 
     return new Response(JSON.stringify({
       success: true,
@@ -101,8 +91,3 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 }
-
-// Vercel Edge Function config
-export const config = {
-  runtime: 'edge',
-};
