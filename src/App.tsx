@@ -11,6 +11,8 @@ import Settings from "./pages/Settings";
 import Gallery from "./pages/Gallery";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
+import Landing from "./pages/Landing";
+import MovieStudio from "./pages/MovieStudio";
 
 const queryClient = new QueryClient();
 
@@ -22,12 +24,14 @@ const App = () => (
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<SignUp />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/gallery" element={<Gallery />} />
+            <Route path="/movie-studio" element={<MovieStudio />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -194,6 +194,21 @@ Called when a scene fails:
 }
 ```
 
+### POST /api/webhook/scene-progress
+
+Called when a scene status changes:
+
+```json
+{
+  "movie_id": "uuid",
+  "scene_number": 1,
+  "status": "generating" | "completed" | "failed",
+  "video_url": "https://...",
+  "audio_url": "https://...",
+  "sora_job_id": "job-id"
+}
+```
+
 **Webhook Secret:** `octo-n8n-webhook-secret-2024`
 
 Verify this header in your webhook handlers:
