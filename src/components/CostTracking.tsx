@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { databases } from "@/lib/appwrite";
-import { DATABASE_ID } from "@/lib/appwrite";
-import { Query } from "appwrite";
-import { DollarSign, TrendingUp, Video, Calendar } from "lucide-react";
+import { getGenerationRecords, GenerationRecord } from "@/lib/costTracking";
+import { DollarSign, TrendingUp, Video, BarChart3, Layers, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -13,22 +10,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const GENERATIONS_COLLECTION_ID = "video_generations";
-
-interface GenerationRecord {
-  $id: string;
-  $createdAt: string;
-  prompt: string;
-  soraModel: string;
-  duration: number;
-  resolution: string;
-  variants: number;
-  generationMode: string;
-  estimatedCost: number;
-  videoId?: string;
-  profileName?: string;
-}
 
 export default function CostTracking() {
   const [records, setRecords] = useState<GenerationRecord[]>([]);
@@ -48,16 +29,9 @@ export default function CostTracking() {
   const loadRecords = async () => {
     try {
       setLoading(true);
-      const response = await databases.listDocuments(
-        DATABASE_ID,
-        GENERATIONS_COLLECTION_ID,
-        [Query.orderDesc("$createdAt"), Query.limit(100)]
-      );
-
-      const data = response.documents as unknown as GenerationRecord[];
+      const data = await getGenerationRecords(100);
       setRecords(data);
 
-      // Calculate statistics
       const totalCost = data.reduce((sum, r) => sum + r.estimatedCost, 0);
       const bySoraModel: Record<string, number> = {};
       const byMode: Record<string, number> = {};
@@ -77,7 +51,7 @@ export default function CostTracking() {
         byMode,
         byProfile,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Failed to load cost records:", error);
     } finally {
       setLoading(false);
@@ -86,185 +60,189 @@ export default function CostTracking() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleDateString() + " " + date.toLocaleTimeString();
+    return date.toLocaleDateString() + " " + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-2xl font-bold">Cost Tracking</h2>
-        <p className="text-muted-foreground">Track your video generation costs and usage</p>
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-primary/10">
+          <DollarSign className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold">Cost Analytics</h2>
+          <p className="text-sm text-muted-foreground">Track your video generation spending</p>
+        </div>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="glass border-primary/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Cost</CardTitle>
-            <DollarSign className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">${stats.totalCost.toFixed(2)}</div>
-            <p className="text-xs text-muted-foreground">All time spending</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass border-primary/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Generations</CardTitle>
-            <Video className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalGenerations}</div>
-            <p className="text-xs text-muted-foreground">Videos created</p>
-          </CardContent>
-        </Card>
-
-        <Card className="glass border-primary/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sora 1</CardTitle>
-            <TrendingUp className="h-4 w-4 text-blue-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${(stats.bySoraModel["sora-1"] || 0).toFixed(2)}
+      {/* Stats Grid */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="card-premium rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">Total Spent</span>
+            <div className="p-2 rounded-lg bg-primary/10">
+              <DollarSign className="h-4 w-4 text-primary" />
             </div>
-            <p className="text-xs text-muted-foreground">Total spent</p>
-          </CardContent>
-        </Card>
+          </div>
+          <p className="text-3xl font-bold text-gradient">${stats.totalCost.toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">All time</p>
+        </div>
 
-        <Card className="glass border-primary/20">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sora 2</CardTitle>
-            <TrendingUp className="h-4 w-4 text-purple-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              ${(stats.bySoraModel["sora-2"] || 0).toFixed(2)}
+        <div className="card-premium rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">Videos Generated</span>
+            <div className="p-2 rounded-lg bg-blue-500/10">
+              <Video className="h-4 w-4 text-blue-500" />
             </div>
-            <p className="text-xs text-muted-foreground">Total spent</p>
-          </CardContent>
-        </Card>
+          </div>
+          <p className="text-3xl font-bold">{stats.totalGenerations}</p>
+          <p className="text-xs text-muted-foreground mt-1">Total creations</p>
+        </div>
+
+        <div className="card-premium rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">Sora 1 Spend</span>
+            <div className="p-2 rounded-lg bg-purple-500/10">
+              <TrendingUp className="h-4 w-4 text-purple-500" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold">${(stats.bySoraModel["sora-1"] || 0).toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">Azure API</p>
+        </div>
+
+        <div className="card-premium rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm text-muted-foreground">Sora 2 Spend</span>
+            <div className="p-2 rounded-lg bg-green-500/10">
+              <TrendingUp className="h-4 w-4 text-green-500" />
+            </div>
+          </div>
+          <p className="text-3xl font-bold">${(stats.bySoraModel["sora-2"] || 0).toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">OpenAI v1 API</p>
+        </div>
       </div>
 
-      {/* Breakdown by Mode */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <CardTitle>Cost by Generation Mode</CardTitle>
-          <CardDescription>Breakdown of spending by video generation type</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {Object.entries(stats.byMode).map(([mode, cost]) => (
-              <div key={mode} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Calendar className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm font-medium capitalize">{mode}</span>
+      {/* Breakdown Cards */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* By Mode */}
+        <div className="card-premium rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <BarChart3 className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold">By Generation Mode</h3>
+          </div>
+          <div className="space-y-3">
+            {Object.entries(stats.byMode).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No data yet</p>
+            ) : (
+              Object.entries(stats.byMode).map(([mode, cost]) => (
+                <div key={mode} className="flex items-center justify-between p-3 rounded-lg bg-card/50">
+                  <div className="flex items-center gap-2">
+                    <Layers className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-medium capitalize">{mode.replace(/-/g, ' ')}</span>
+                  </div>
+                  <span className="text-sm font-bold">${cost.toFixed(2)}</span>
                 </div>
-                <span className="text-sm font-bold">${cost.toFixed(2)}</span>
-              </div>
-            ))}
-            {Object.keys(stats.byMode).length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No data available yet
-              </p>
+              ))
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Cost by Profile */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <CardTitle>Cost by Profile</CardTitle>
-          <CardDescription>Spending grouped by configured profiles</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            {Object.entries(stats.byProfile).map(([profile, cost]) => (
-              <div key={profile} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+        {/* By Profile */}
+        <div className="card-premium rounded-xl p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="h-4 w-4 text-muted-foreground" />
+            <h3 className="font-semibold">By Profile</h3>
+          </div>
+          <div className="space-y-3">
+            {Object.entries(stats.byProfile).length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">No data yet</p>
+            ) : (
+              Object.entries(stats.byProfile).map(([profile, cost]) => (
+                <div key={profile} className="flex items-center justify-between p-3 rounded-lg bg-card/50">
                   <span className="text-sm font-medium">{profile}</span>
+                  <span className="text-sm font-bold">${cost.toFixed(2)}</span>
                 </div>
-                <span className="text-sm font-bold">${cost.toFixed(2)}</span>
-              </div>
-            ))}
-            {Object.keys(stats.byProfile).length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                No data available yet
-              </p>
+              ))
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      {/* Generation History Table */}
-      <Card className="glass border-primary/20">
-        <CardHeader>
-          <CardTitle>Generation History</CardTitle>
-          <CardDescription>Detailed record of all video generations</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <p className="text-center text-muted-foreground py-8">Loading...</p>
-          ) : records.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No generations yet</p>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date & Time</TableHead>
-                    <TableHead>Video ID</TableHead>
-                    <TableHead>Profile</TableHead>
-                    <TableHead>Model</TableHead>
-                    <TableHead>Mode</TableHead>
-                    <TableHead>Resolution</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Variants</TableHead>
-                    <TableHead className="text-right">Cost</TableHead>
+      {/* History Table */}
+      <div className="card-premium rounded-xl overflow-hidden">
+        <div className="p-6 border-b border-border/50">
+          <h3 className="font-semibold">Generation History</h3>
+          <p className="text-sm text-muted-foreground mt-1">Detailed record of all video generations</p>
+        </div>
+        
+        {loading ? (
+          <div className="p-12 text-center">
+            <div className="w-8 h-8 border-2 border-primary/30 border-t-primary rounded-full animate-spin mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Loading...</p>
+          </div>
+        ) : records.length === 0 ? (
+          <div className="p-12 text-center">
+            <Video className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-muted-foreground">No generations yet</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="text-xs uppercase tracking-wider">Date</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Video ID</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Profile</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Model</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Mode</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Resolution</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider">Duration</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-right">Cost</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {records.map((record, index) => (
+                  <TableRow 
+                    key={record.id}
+                    className="animate-in"
+                    style={{ animationDelay: `${index * 30}ms` }}
+                  >
+                    <TableCell className="text-xs text-muted-foreground">
+                      {formatDate(record.createdAt)}
+                    </TableCell>
+                    <TableCell className="text-xs font-mono">
+                      {record.videoId ? (
+                        <span className="text-primary">{record.videoId.slice(0, 12)}...</span>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-xs">{record.profileName || 'Default'}</TableCell>
+                    <TableCell>
+                      <Badge 
+                        className={`text-xs ${
+                          record.soraModel === 'sora-2' 
+                            ? 'bg-primary/10 text-primary border-primary/20' 
+                            : 'bg-muted text-muted-foreground'
+                        }`}
+                      >
+                        {record.soraModel}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-xs capitalize">{record.generationMode.replace(/-/g, ' ')}</TableCell>
+                    <TableCell className="text-xs">{record.resolution}</TableCell>
+                    <TableCell className="text-xs">{record.duration}s</TableCell>
+                    <TableCell className="text-right font-bold text-sm">
+                      ${record.estimatedCost.toFixed(2)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {records.map((record) => (
-                    <TableRow key={record.$id}>
-                      <TableCell className="text-xs">
-                        {formatDate(record.$createdAt)}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono">
-                        {record.videoId ? (
-                          <span className="truncate max-w-[140px] inline-block">
-                            {record.videoId}
-                          </span>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs">
-                        {record.profileName || 'Default'}
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs">
-                          {record.soraModel}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-xs capitalize">
-                        {record.generationMode}
-                      </TableCell>
-                      <TableCell className="text-xs">{record.resolution}</TableCell>
-                      <TableCell className="text-xs">{record.duration}s</TableCell>
-                      <TableCell className="text-xs">{record.variants}</TableCell>
-                      <TableCell className="text-right font-bold">
-                        ${record.estimatedCost.toFixed(2)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

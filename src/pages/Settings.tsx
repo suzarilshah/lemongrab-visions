@@ -1,22 +1,21 @@
 import { useState, useEffect } from "react";
-import { account, functions } from "@/lib/appwrite";
+import { getCurrentUser, updatePassword, User } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { toast } from "sonner";
-import { ArrowLeft, KeyRound, ChevronDown, RefreshCw } from "lucide-react";
+import { ArrowLeft, KeyRound, ChevronDown, Settings as SettingsIcon, Shield, Zap, Plus } from "lucide-react";
 import { getProfiles, saveProfile, createProfile, deleteProfile, setActiveProfile, getActiveProfile, type Profile, type SoraVersion } from "@/lib/profiles";
 import { useNavigate } from "react-router-dom";
 import ProfilesList from "@/components/ProfilesList";
 import ProfileEditor from "@/components/ProfileEditor";
-import { ExecutionMethod } from "appwrite";
 
 export default function Settings() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   // Profiles state
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -31,11 +30,6 @@ export default function Settings() {
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [passwordSectionOpen, setPasswordSectionOpen] = useState(false);
 
-  // Migration state
-  const [isMigrating, setIsMigrating] = useState(false);
-  const [migrationSectionOpen, setMigrationSectionOpen] = useState(false);
-  const [migrationResults, setMigrationResults] = useState<any>(null);
-
   useEffect(() => {
     checkAuth();
     loadProfiles();
@@ -43,9 +37,13 @@ export default function Settings() {
 
   const checkAuth = async () => {
     try {
-      const currentUser = await account.get();
+      const currentUser = await getCurrentUser();
+      if (!currentUser) {
+        navigate("/login");
+        return;
+      }
       setUser(currentUser);
-    } catch (error) {
+    } catch {
       navigate("/login");
     }
   };
@@ -69,39 +67,38 @@ export default function Settings() {
     setEditorOpen(true);
   };
 
-  const handleSave = (data: { name: string; endpoint: string; apiKey: string; deployment: string; soraVersion: SoraVersion }) => {
+  const handleSave = async (data: { name: string; endpoint: string; apiKey: string; deployment: string; soraVersion: SoraVersion }) => {
     setIsLoading(true);
     try {
       if (editingProfile) {
-        // Update existing
         const updated: Profile = { ...editingProfile, ...data };
-        saveProfile(updated);
+        await saveProfile(updated);
         toast.success("Profile updated successfully!");
       } else {
-        // Create new
-        const newProfile = createProfile(data);
+        await createProfile(data);
         toast.success("Profile created successfully!");
       }
-      loadProfiles();
+      await loadProfiles();
       setEditorOpen(false);
       setEditingProfile(null);
-    } catch (error: any) {
-      toast.error(error.message || "Failed to save profile");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to save profile";
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this profile?")) {
-      deleteProfile(id);
-      loadProfiles();
+      await deleteProfile(id);
+      await loadProfiles();
       toast.success("Profile deleted");
     }
   };
 
-  const handleSetActive = (id: string) => {
-    setActiveProfile(id);
+  const handleSetActive = async (id: string) => {
+    await setActiveProfile(id);
     setActiveProfileId(id);
     toast.success("Active profile updated");
   };
@@ -122,214 +119,235 @@ export default function Settings() {
     setIsResettingPassword(true);
 
     try {
-      await account.updatePassword(newPassword, currentPassword);
+      await updatePassword(currentPassword, newPassword);
       toast.success("Password updated successfully!");
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
       setPasswordSectionOpen(false);
-    } catch (error: any) {
-      console.error("Password reset error:", error);
-      toast.error(error.message || "Failed to update password");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to update password";
+      toast.error(message);
     } finally {
       setIsResettingPassword(false);
     }
   };
 
-  const handleFixVideoPermissions = async () => {
-    setIsMigrating(true);
-    setMigrationResults(null);
-    
-    try {
-      toast.info("Starting video permissions migration...");
-      
-      const response = await functions.createExecution(
-        'fix-video-permissions',
-        '',
-        false,
-        '/',
-        ExecutionMethod.POST
-      );
-
-      const result = JSON.parse(response.responseBody);
-      
-      if (result.success) {
-        setMigrationResults(result.results);
-        toast.success(`Migration complete! Updated ${result.results.updated} videos, ${result.results.alreadyPublic} already public.`);
-      } else {
-        toast.error(result.error || "Migration failed");
-      }
-    } catch (error: any) {
-      console.error("Migration error:", error);
-      toast.error(error.message || "Failed to run migration");
-    } finally {
-      setIsMigrating(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <Button variant="ghost" onClick={() => navigate("/")} className="mb-4">
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Left: Profiles List */}
-          <ProfilesList
-            profiles={profiles}
-            activeProfileId={activeProfileId}
-            onEdit={handleEdit}
-            onDelete={handleDelete}
-            onSetActive={handleSetActive}
-            onCreateNew={handleCreateNew}
-          />
-
-          {/* Right: Profile Editor (conditional) */}
-          {editorOpen && (
-            <ProfileEditor
-              profile={editingProfile}
-              onSave={handleSave}
-              onCancel={() => {
-                setEditorOpen(false);
-                setEditingProfile(null);
-              }}
-              isLoading={isLoading}
-            />
-          )}
-
-          {/* Placeholder when editor is closed */}
-          {!editorOpen && (
-            <Card className="h-full flex items-center justify-center border-dashed">
-              <CardContent className="text-center py-12">
-                <p className="text-muted-foreground mb-2">No profile selected</p>
-                <p className="text-sm text-muted-foreground">
-                  Click "Create New" or "Edit" to manage profiles
-                </p>
-              </CardContent>
-            </Card>
-          )}
+    <div className="min-h-screen bg-background relative">
+      {/* Background */}
+      <div className="fixed inset-0 bg-mesh opacity-50" />
+      <div className="fixed inset-0 bg-grid opacity-30" />
+      
+      {/* Header */}
+      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate("/")}
+                className="hover:bg-primary/10"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back
+              </Button>
+              <div className="h-6 w-px bg-border/50" />
+              <div className="flex items-center gap-2">
+                <SettingsIcon className="h-5 w-5 text-primary" />
+                <h1 className="text-xl font-bold">Settings</h1>
+              </div>
+            </div>
+            
+            {user && (
+              <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                <span>{user.email}</span>
+              </div>
+            )}
+          </div>
         </div>
+      </header>
 
-        {/* Password Reset Section (Collapsible) */}
-        <Collapsible open={passwordSectionOpen} onOpenChange={setPasswordSectionOpen}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl">Password Reset</CardTitle>
-                    <CardDescription>Update your account password</CardDescription>
-                  </div>
-                  <ChevronDown
-                    className={`h-5 w-5 transition-transform ${passwordSectionOpen ? "rotate-180" : ""}`}
-                  />
+      {/* Main Content */}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid gap-8 lg:grid-cols-5">
+          {/* Left Column - Profiles */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Section Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <Zap className="h-5 w-5 text-primary" />
                 </div>
-              </CardHeader>
-            </CollapsibleTrigger>
-
-            <CollapsibleContent>
-              <CardContent className="pt-0">
-                <form onSubmit={handlePasswordReset} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="currentPassword">Current Password</Label>
-                    <Input
-                      id="currentPassword"
-                      type="password"
-                      placeholder="Enter your current password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="newPassword">New Password</Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      placeholder="Enter your new password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      required
-                    />
-                    <p className="text-xs text-muted-foreground">Must be at least 8 characters long</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
-                    <Input
-                      id="confirmPassword"
-                      type="password"
-                      placeholder="Confirm your new password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      required
-                    />
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isResettingPassword}>
-                    <KeyRound className="mr-2 h-4 w-4" />
-                    {isResettingPassword ? "Updating..." : "Update Password"}
-                  </Button>
-                </form>
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-
-        {/* Video Permissions Migration Section (Collapsible) */}
-        <Collapsible open={migrationSectionOpen} onOpenChange={setMigrationSectionOpen}>
-          <Card>
-            <CollapsibleTrigger asChild>
-              <CardHeader className="cursor-pointer hover:bg-muted/50 transition-colors">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-xl">Fix Video Permissions</CardTitle>
-                    <CardDescription>One-time migration to fix existing video access</CardDescription>
-                  </div>
-                  <ChevronDown
-                    className={`h-5 w-5 transition-transform ${migrationSectionOpen ? "rotate-180" : ""}`}
-                  />
+                <div>
+                  <h2 className="text-lg font-semibold">Azure Profiles</h2>
+                  <p className="text-sm text-muted-foreground">Manage your Azure OpenAI configurations</p>
                 </div>
-              </CardHeader>
-            </CollapsibleTrigger>
+              </div>
+              <Button
+                onClick={handleCreateNew}
+                className="btn-premium"
+                size="sm"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Profile
+              </Button>
+            </div>
+            
+            {/* Profiles List or Editor */}
+            {editorOpen ? (
+              <div className="animate-in">
+                <ProfileEditor
+                  profile={editingProfile}
+                  onSave={handleSave}
+                  onCancel={() => {
+                    setEditorOpen(false);
+                    setEditingProfile(null);
+                  }}
+                  isLoading={isLoading}
+                />
+              </div>
+            ) : (
+              <div className="animate-in">
+                <ProfilesList
+                  profiles={profiles}
+                  activeProfileId={activeProfileId}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                  onSetActive={handleSetActive}
+                  onCreateNew={handleCreateNew}
+                />
+              </div>
+            )}
+          </div>
 
-            <CollapsibleContent>
-              <CardContent className="pt-0 space-y-4">
-                <p className="text-sm text-muted-foreground">
-                  If you have existing videos that cannot be viewed or downloaded, run this migration to add public read permissions.
-                  This is safe to run multiple times.
-                </p>
+          {/* Right Column - Account Settings */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Account Section Header */}
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-primary/10">
+                <Shield className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">Account Security</h2>
+                <p className="text-sm text-muted-foreground">Manage your password</p>
+              </div>
+            </div>
+            
+            {/* Password Reset Section */}
+            <Collapsible open={passwordSectionOpen} onOpenChange={setPasswordSectionOpen}>
+              <Card className="card-premium">
+                <CollapsibleTrigger asChild>
+                  <CardHeader className="cursor-pointer hover:bg-primary/5 transition-colors rounded-t-xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <KeyRound className="h-5 w-5 text-muted-foreground" />
+                        <div>
+                          <CardTitle className="text-base">Change Password</CardTitle>
+                          <CardDescription className="text-sm">Update your account password</CardDescription>
+                        </div>
+                      </div>
+                      <ChevronDown
+                        className={`h-5 w-5 text-muted-foreground transition-transform duration-200 ${passwordSectionOpen ? "rotate-180" : ""}`}
+                      />
+                    </div>
+                  </CardHeader>
+                </CollapsibleTrigger>
 
-                <Button 
-                  onClick={handleFixVideoPermissions} 
-                  className="w-full" 
-                  disabled={isMigrating}
-                >
-                  <RefreshCw className={`mr-2 h-4 w-4 ${isMigrating ? "animate-spin" : ""}`} />
-                  {isMigrating ? "Running Migration..." : "Fix Video Permissions"}
-                </Button>
+                <CollapsibleContent>
+                  <CardContent className="pt-0">
+                    <form onSubmit={handlePasswordReset} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="currentPassword" className="text-sm">Current Password</Label>
+                        <Input
+                          id="currentPassword"
+                          type="password"
+                          placeholder="••••••••"
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          required
+                          className="input-premium"
+                        />
+                      </div>
 
-                {migrationResults && (
-                  <div className="p-4 bg-muted rounded-md space-y-2">
-                    <p className="text-sm font-medium">Migration Results:</p>
-                    <ul className="text-sm space-y-1">
-                      <li>✓ Processed: {migrationResults.processed} files</li>
-                      <li>✓ Updated: {migrationResults.updated} files</li>
-                      <li>✓ Already public: {migrationResults.alreadyPublic} files</li>
-                      {migrationResults.errors.length > 0 && (
-                        <li className="text-destructive">✗ Errors: {migrationResults.errors.length}</li>
-                      )}
-                    </ul>
+                      <div className="space-y-2">
+                        <Label htmlFor="newPassword" className="text-sm">New Password</Label>
+                        <Input
+                          id="newPassword"
+                          type="password"
+                          placeholder="••••••••"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          required
+                          className="input-premium"
+                        />
+                        <p className="text-xs text-muted-foreground">Minimum 8 characters</p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="confirmPassword" className="text-sm">Confirm New Password</Label>
+                        <Input
+                          id="confirmPassword"
+                          type="password"
+                          placeholder="••••••••"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          required
+                          className="input-premium"
+                        />
+                      </div>
+
+                      <Button 
+                        type="submit" 
+                        className="w-full btn-premium" 
+                        disabled={isResettingPassword}
+                      >
+                        {isResettingPassword ? (
+                          <div className="flex items-center gap-2">
+                            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            Updating...
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <KeyRound className="h-4 w-4" />
+                            Update Password
+                          </div>
+                        )}
+                      </Button>
+                    </form>
+                  </CardContent>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+            
+            {/* Account Info Card */}
+            {user && (
+              <Card className="card-premium">
+                <CardHeader>
+                  <CardTitle className="text-base">Account Information</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-center justify-between py-2 border-b border-border/50">
+                    <span className="text-sm text-muted-foreground">Email</span>
+                    <span className="text-sm font-medium">{user.email}</span>
                   </div>
-                )}
-              </CardContent>
-            </CollapsibleContent>
-          </Card>
-        </Collapsible>
-      </div>
+                  <div className="flex items-center justify-between py-2 border-b border-border/50">
+                    <span className="text-sm text-muted-foreground">Name</span>
+                    <span className="text-sm font-medium">{user.name || "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between py-2">
+                    <span className="text-sm text-muted-foreground">Member since</span>
+                    <span className="text-sm font-medium">
+                      {new Date(user.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

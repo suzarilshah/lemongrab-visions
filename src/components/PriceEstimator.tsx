@@ -1,5 +1,4 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DollarSign } from "lucide-react";
+import { DollarSign, Zap } from "lucide-react";
 
 interface PriceEstimatorProps {
   width: string;
@@ -34,33 +33,50 @@ export default function PriceEstimator({ width, height, duration, variants, sora
   const price = calculatePrice();
 
   return (
-    <Card className="glass border-primary/20">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-sm font-medium flex items-center gap-2">
+    <div className="card-premium rounded-xl p-6 h-fit">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <div className="p-2 rounded-lg bg-primary/10">
           <DollarSign className="h-4 w-4 text-primary" />
-          Estimated Cost
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="text-3xl font-bold text-primary">${price}</div>
-        <p className="text-xs text-muted-foreground mt-1">
-          Based on Azure OpenAI {soraVersion === "sora-2" ? "Sora 2" : "Sora 1"} pricing
-        </p>
-        <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-          <div className="flex justify-between">
-            <span>Resolution:</span>
-            <span className="font-medium">{width}×{height}</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Duration:</span>
-            <span className="font-medium">{duration}s</span>
-          </div>
-          <div className="flex justify-between">
-            <span>Variants:</span>
-            <span className="font-medium">{variants}</span>
-          </div>
         </div>
-      </CardContent>
-    </Card>
+        <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Est. Cost
+        </h3>
+      </div>
+      
+      {/* Price Display */}
+      <div className="mb-4">
+        <p className="text-4xl font-bold text-gradient">${price}</p>
+        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+          <Zap className="h-3 w-3" />
+          {soraVersion === "sora-2" ? "Sora 2" : "Sora 1"} pricing
+        </p>
+      </div>
+      
+      {/* Breakdown */}
+      <div className="space-y-2 pt-4 border-t border-border/50">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Resolution</span>
+          <span className="font-mono font-medium">{width}×{height}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Duration</span>
+          <span className="font-mono font-medium">{duration}s</span>
+        </div>
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Variants</span>
+          <span className="font-mono font-medium">{variants}</span>
+        </div>
+      </div>
+      
+      {/* Rate Info */}
+      <div className="mt-4 p-3 rounded-lg bg-card/50 text-xs text-muted-foreground">
+        <p>
+          {soraVersion === "sora-2" 
+            ? "$0.10/second flat rate" 
+            : "$0.05/second @ 720p, scales with resolution"}
+        </p>
+      </div>
+    </div>
   );
 }

@@ -7,7 +7,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
-import { functions } from "@/lib/appwrite";
 
 interface PromptBuilderModalProps {
   open: boolean;
@@ -61,6 +60,72 @@ const ARTISTIC_STYLES = [
   "Fantasy",
 ];
 
+/**
+ * Build a structured video prompt from components
+ */
+function buildPrompt(params: {
+  subject: string;
+  action: string;
+  environment?: string;
+  lighting?: string;
+  cameraShot?: string;
+  cameraAngle?: string;
+  cameraMovement?: string;
+  style?: string;
+  details?: string;
+}): string {
+  const parts: string[] = [];
+  
+  // Start with camera shot if specified
+  if (params.cameraShot) {
+    parts.push(`${params.cameraShot} of`);
+  }
+  
+  // Subject and action (required)
+  parts.push(`${params.subject} ${params.action}`);
+  
+  // Environment
+  if (params.environment) {
+    parts.push(`in ${params.environment}`);
+  }
+  
+  // Lighting
+  if (params.lighting) {
+    parts.push(`with ${params.lighting} lighting`);
+  }
+  
+  // Camera angle
+  if (params.cameraAngle && params.cameraAngle !== "Eye-level") {
+    parts.push(`shot from a ${params.cameraAngle.toLowerCase()}`);
+  }
+  
+  // Camera movement
+  if (params.cameraMovement && params.cameraMovement !== "Static") {
+    parts.push(`camera ${params.cameraMovement.toLowerCase()}`);
+  }
+  
+  // Style
+  if (params.style) {
+    parts.push(`${params.style.toLowerCase()} style`);
+  }
+  
+  // Additional details
+  if (params.details) {
+    parts.push(params.details);
+  }
+  
+  // Join everything into a coherent prompt
+  let prompt = parts.join(", ");
+  
+  // Capitalize first letter and add period if missing
+  prompt = prompt.charAt(0).toUpperCase() + prompt.slice(1);
+  if (!prompt.endsWith(".") && !prompt.endsWith("!") && !prompt.endsWith("?")) {
+    prompt += ".";
+  }
+  
+  return prompt;
+}
+
 export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: PromptBuilderModalProps) {
   const [subject, setSubject] = useState("");
   const [action, setAction] = useState("");
@@ -82,83 +147,28 @@ export default function PromptBuilderModal({ open, onOpenChange, onUsePrompt }: 
 
     setIsGenerating(true);
     try {
-      const payload = {
-        subject,
-        action,
-        environment,
-        lighting,
-        camera_shot: cameraShot,
-        camera_angle: cameraAngle,
-        camera_movement: cameraMovement,
-        style,
-        details,
-      };
-      console.log("Sending payload to Appwrite function:", payload);
-
-      // Prefer Appwrite SDK
-      let execution;
-      try {
-        execution = await functions.createExecution(
-          'generate-video-prompt',
-          JSON.stringify(payload),
-          false // wait for result
-        );
-        console.log("Appwrite execution response (SDK):", execution);
-      } catch (sdkErr) {
-        console.warn("SDK execution failed, falling back to REST:", sdkErr);
-      }
-
-      const parseExecution = (exec: any) => {
-        if (exec?.status === "completed" && exec.responseBody) {
-          try {
-            const result = JSON.parse(exec.responseBody);
-            console.log("Parsed response body:", result);
-            if (result.prompt) {
-              setGeneratedPrompt(result.prompt);
-              toast.success("Prompt generated successfully!");
-              return true;
-            }
-            if (result.error) throw new Error(result.error);
-            throw new Error("No prompt in response");
-          } catch (parseError: any) {
-            console.error("Failed to parse response body:", exec.responseBody);
-            throw new Error(`Invalid response format: ${parseError.message}`);
-          }
-        }
-        if (exec?.status === "failed") {
-          const msg = exec.responseBody ? (() => { try { return JSON.parse(exec.responseBody).error } catch { return exec.responseBody } })() : "Function execution failed";
-          throw new Error(msg);
-        }
-        throw new Error(`Unexpected status: ${exec?.status}`);
-      };
-
-      try {
-        if (execution) parseExecution(execution);
-        else throw new Error("SDK execution not available");
-      } catch (e: any) {
-        // If body was empty or invalid, try REST with credentials to ensure cookies are sent
-        console.warn("Primary execution parse failed, trying REST fallback:", e?.message);
-        const response = await fetch("https://syd.cloud.appwrite.io/v1/functions/generate-video-prompt/executions", {
-          method: "POST",
-          mode: "cors",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Appwrite-Project": "lemongrab",
-          },
-          body: JSON.stringify({ data: JSON.stringify(payload) }),
-        });
-        const data = await response.json();
-        console.log("Appwrite execution response (REST):", data);
-        parseExecution(data);
-      }
-    } catch (error: any) {
+      // Build prompt locally
+      const prompt = buildPrompt({
+        subject: subject.trim(),
+        action: action.trim(),
+        environment: environment.trim() || undefined,
+        lighting: lighting.trim() || undefined,
+        cameraShot: cameraShot || undefined,
+        cameraAngle: cameraAngle || undefined,
+        cameraMovement: cameraMovement || undefined,
+        style: style || undefined,
+        details: details.trim() || undefined,
+      });
+      
+      // Simulate a brief processing delay for better UX
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      setGeneratedPrompt(prompt);
+      toast.success("Prompt generated successfully!");
+    } catch (error: unknown) {
       console.error("Error generating prompt:", error);
-      const errorMsg = error.message || "Failed to generate prompt";
-      const userFriendlyMsg = errorMsg.includes("Empty request body") || errorMsg.includes("Invalid JSON")
-        ? "Could not send your prompt data. Please try again."
-        : errorMsg;
-      toast.error(userFriendlyMsg);
+      const errorMsg = error instanceof Error ? error.message : "Failed to generate prompt";
+      toast.error(errorMsg);
     } finally {
       setIsGenerating(false);
     }

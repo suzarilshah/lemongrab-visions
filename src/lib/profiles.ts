@@ -1,5 +1,9 @@
-import { databases, DATABASE_ID, account } from "@/lib/appwrite";
-import { ID, Query } from "appwrite";
+/**
+ * Profiles Management
+ * Migrated from Appwrite to Neon PostgreSQL
+ */
+import { sql } from './db';
+import { requireUserId, getCurrentUser } from './auth';
 
 export type SoraVersion = "sora-1" | "sora-2";
 
@@ -12,99 +16,98 @@ export interface Profile {
   soraVersion: SoraVersion;
 }
 
-const PROFILES_COLLECTION_ID = "profiles_config";
-
-// Resolve the correct Appwrite Database ID once and cache it
-let __DB_CACHE: string | null = null;
-async function resolveDatabaseId(): Promise<string> {
-  if (__DB_CACHE) return __DB_CACHE;
-  const candidates = [DATABASE_ID, "default", "lemongrab_db"];
-  for (const id of candidates) {
-    try {
-      await databases.listDocuments(id, PROFILES_COLLECTION_ID, [Query.limit(1)]);
-      __DB_CACHE = id;
-      console.info(`[Profiles] Using Appwrite database: ${id}`);
-      return id;
-    } catch (e: any) {
-      // Try next candidate on 404 or any error
-      continue;
-    }
-  }
-  throw new Error("Appwrite Database not found. Verify database ID in src/lib/appwrite.ts or ensure a database exists.");
+// Database row type
+interface DbProfile {
+  id: string;
+  user_id: string;
+  name: string;
+  endpoint: string;
+  api_key: string;
+  deployment: string;
+  sora_version: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
+/**
+ * Convert database row to Profile interface
+ */
+function dbRowToProfile(row: DbProfile): Profile {
+  return {
+    id: row.id,
+    name: row.name,
+    endpoint: row.endpoint,
+    apiKey: row.api_key,
+    deployment: row.deployment,
+    soraVersion: row.sora_version as SoraVersion,
+  };
+}
+
+/**
+ * Get all profiles for the current user
+ */
 export async function getProfiles(): Promise<Profile[]> {
   try {
-    const user = await account.get();
-    const response = await databases.listDocuments(
-      await resolveDatabaseId(),
-      PROFILES_COLLECTION_ID,
-      [
-        Query.equal("user_id", user.$id),
-        Query.orderDesc("$createdAt")
-      ]
-    );
+    const userId = await requireUserId();
     
-    return response.documents.map((doc: any) => ({
-      id: doc.$id,
-      name: doc.name,
-      endpoint: doc.endpoint,
-      apiKey: doc.api_key,
-      deployment: doc.deployment,
-      soraVersion: doc.sora_version as SoraVersion,
-    }));
-  } catch (error: any) {
+    const rows = await sql`
+      SELECT id, user_id, name, endpoint, api_key, deployment, sora_version, is_active, created_at, updated_at
+      FROM profiles_config
+      WHERE user_id = ${userId}
+      ORDER BY created_at DESC
+    `;
+
+    return (rows as DbProfile[]).map(dbRowToProfile);
+  } catch (error: unknown) {
     console.error("[Profiles] Error fetching profiles:", error);
     return [];
   }
 }
 
+/**
+ * Save (update) an existing profile
+ */
 export async function saveProfile(profile: Profile): Promise<void> {
   try {
-    await databases.updateDocument(
-      await resolveDatabaseId(),
-      PROFILES_COLLECTION_ID,
-      profile.id,
-      {
-        name: profile.name,
-        endpoint: profile.endpoint,
-        api_key: profile.apiKey,
-        deployment: profile.deployment,
-        sora_version: profile.soraVersion,
-      }
-    );
-  } catch (error: any) {
+    const userId = await requireUserId();
+    
+    await sql`
+      UPDATE profiles_config
+      SET name = ${profile.name}, 
+          endpoint = ${profile.endpoint}, 
+          api_key = ${profile.apiKey}, 
+          deployment = ${profile.deployment}, 
+          sora_version = ${profile.soraVersion}
+      WHERE id = ${profile.id} AND user_id = ${userId}
+    `;
+  } catch (error: unknown) {
     console.error("[Profiles] Error saving profile:", error);
-    throw new Error(`Failed to save profile: ${error.message}`);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to save profile: ${message}`);
   }
 }
 
+/**
+ * Create a new profile
+ */
 export async function createProfile(input: Omit<Profile, "id">): Promise<Profile> {
   try {
-    const user = await account.get();
-    const response = await databases.createDocument(
-      await resolveDatabaseId(),
-      PROFILES_COLLECTION_ID,
-      ID.unique(),
-      {
-        user_id: user.$id,
-        name: input.name,
-        endpoint: input.endpoint,
-        api_key: input.apiKey,
-        deployment: input.deployment,
-        sora_version: input.soraVersion,
-        is_active: false,
-      }
-    );
+    const userId = await requireUserId();
+    
+    const id = crypto.randomUUID();
+    
+    const rows = await sql`
+      INSERT INTO profiles_config (id, user_id, name, endpoint, api_key, deployment, sora_version, is_active)
+      VALUES (${id}, ${userId}, ${input.name}, ${input.endpoint}, ${input.apiKey}, ${input.deployment}, ${input.soraVersion}, false)
+      RETURNING id, user_id, name, endpoint, api_key, deployment, sora_version, is_active, created_at, updated_at
+    `;
 
-    const profile: Profile = {
-      id: response.$id,
-      name: response.name,
-      endpoint: response.endpoint,
-      apiKey: response.api_key,
-      deployment: response.deployment,
-      soraVersion: response.sora_version as SoraVersion,
-    };
+    if (rows.length === 0) {
+      throw new Error('Failed to create profile');
+    }
+
+    const profile = dbRowToProfile(rows[0] as DbProfile);
 
     // If no active profile exists, set this as active
     const activeProfile = await getActiveProfile();
@@ -113,85 +116,94 @@ export async function createProfile(input: Omit<Profile, "id">): Promise<Profile
     }
 
     return profile;
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[Profiles] Error creating profile:", error);
-    throw new Error(`Failed to create profile: ${error.message}`);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to create profile: ${message}`);
   }
 }
 
+/**
+ * Delete a profile
+ */
 export async function deleteProfile(id: string): Promise<void> {
   try {
-    await databases.deleteDocument(await resolveDatabaseId(), PROFILES_COLLECTION_ID, id);
+    const userId = await requireUserId();
     
+    // Check if this is the active profile
     const activeProfile = await getActiveProfile();
-    if (activeProfile?.id === id) {
+    const wasActive = activeProfile?.id === id;
+    
+    await sql`DELETE FROM profiles_config WHERE id = ${id} AND user_id = ${userId}`;
+
+    // If we deleted the active profile, set another one as active
+    if (wasActive) {
       const profiles = await getProfiles();
       if (profiles.length > 0) {
         await setActiveProfile(profiles[0].id);
       }
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[Profiles] Error deleting profile:", error);
-    throw new Error(`Failed to delete profile: ${error.message}`);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to delete profile: ${message}`);
   }
 }
 
+/**
+ * Set a profile as the active profile
+ */
 export async function setActiveProfile(id: string): Promise<void> {
   try {
-    const user = await account.get();
+    const userId = await requireUserId();
+    
     // First, deactivate all user's profiles
-    const profiles = await getProfiles();
-    for (const profile of profiles) {
-      await databases.updateDocument(
-        await resolveDatabaseId(),
-        PROFILES_COLLECTION_ID,
-        profile.id,
-        { is_active: false }
-      );
-    }
+    await sql`UPDATE profiles_config SET is_active = false WHERE user_id = ${userId}`;
 
-    // Then activate the selected profile (verify it belongs to user)
-    await databases.updateDocument(
-      await resolveDatabaseId(),
-      PROFILES_COLLECTION_ID,
-      id,
-      { is_active: true }
-    );
-  } catch (error: any) {
+    // Then activate the selected profile
+    await sql`UPDATE profiles_config SET is_active = true WHERE id = ${id} AND user_id = ${userId}`;
+  } catch (error: unknown) {
     console.error("[Profiles] Error setting active profile:", error);
-    throw new Error(`Failed to set active profile: ${error.message}`);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    throw new Error(`Failed to set active profile: ${message}`);
   }
 }
 
+/**
+ * Get the currently active profile
+ */
 export async function getActiveProfile(): Promise<Profile | null> {
   try {
-    const user = await account.get();
-    const response = await databases.listDocuments(
-      await resolveDatabaseId(),
-      PROFILES_COLLECTION_ID,
-      [
-        Query.equal("user_id", user.$id),
-        Query.equal("is_active", true),
-        Query.limit(1)
-      ]
-    );
-
-    if (response.documents.length === 0) {
-      // No active profile, return first profile if exists
-      const allProfiles = await getProfiles();
-      return allProfiles[0] || null;
+    const user = await getCurrentUser();
+    if (!user) {
+      return null;
     }
 
-    const doc = response.documents[0];
-    return {
-      id: doc.$id,
-      name: doc.name,
-      endpoint: doc.endpoint,
-      apiKey: doc.api_key,
-      deployment: doc.deployment,
-      soraVersion: doc.sora_version as SoraVersion,
-    };
-  } catch (error: any) {
+    // First try to get the active profile
+    let rows = await sql`
+      SELECT id, user_id, name, endpoint, api_key, deployment, sora_version, is_active, created_at, updated_at
+      FROM profiles_config
+      WHERE user_id = ${user.id} AND is_active = true
+      LIMIT 1
+    `;
+
+    // If no active profile, return the first profile
+    if (rows.length === 0) {
+      rows = await sql`
+        SELECT id, user_id, name, endpoint, api_key, deployment, sora_version, is_active, created_at, updated_at
+        FROM profiles_config
+        WHERE user_id = ${user.id}
+        ORDER BY created_at DESC
+        LIMIT 1
+      `;
+    }
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    return dbRowToProfile(rows[0] as DbProfile);
+  } catch (error: unknown) {
     console.error("[Profiles] Error fetching active profile:", error);
     return null;
   }

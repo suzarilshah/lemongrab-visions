@@ -3,15 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Play, Upload, Sparkles, Mic, MicOff } from "lucide-react";
+import { Play, Upload, Sparkles, Mic, MicOff, Wand2, Film, Image, RefreshCw } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import PriceEstimator from "@/components/PriceEstimator";
 import { listVideos } from "@/lib/videoGenerator";
 import { getActiveProfile } from "@/lib/profiles";
-import { toast } from "sonner";
 import PromptBuilderModal from "@/components/PromptBuilderModal";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 
@@ -32,26 +29,25 @@ interface VideoGenerationFormProps {
 }
 
 const RESOLUTIONS = [
-  { value: "480x480", label: "480x480 (Square)" },
-  { value: "480x854", label: "480x854 (Portrait)" },
-  { value: "854x480", label: "854x480 (Landscape)" },
-  { value: "720x720", label: "720x720 (Square)" },
-  { value: "720x1280", label: "720x1280 (Portrait)" },
-  { value: "1280x720", label: "1280x720 (Landscape)" },
-  { value: "1080x1080", label: "1080x1080 (Square)" },
-  { value: "1080x1920", label: "1080x1920 (Portrait)" },
-  { value: "1920x1080", label: "1920x1080 (Landscape)" },
+  { value: "480x480", label: "480×480 (Square)" },
+  { value: "480x854", label: "480×854 (Portrait)" },
+  { value: "854x480", label: "854×480 (Landscape)" },
+  { value: "720x720", label: "720×720 (Square)" },
+  { value: "720x1280", label: "720×1280 (Portrait)" },
+  { value: "1280x720", label: "1280×720 (Landscape)" },
+  { value: "1080x1080", label: "1080×1080 (Square)" },
+  { value: "1080x1920", label: "1080×1920 (Portrait)" },
+  { value: "1920x1080", label: "1920×1080 (Landscape)" },
 ];
 
 const SORA2_RESOLUTIONS = [
-  { value: "720x1280", label: "720x1280 (Portrait)" },
-  { value: "1280x720", label: "1280x720 (Landscape)" },
+  { value: "720x1280", label: "720×1280 (Portrait)" },
+  { value: "1280x720", label: "1280×720 (Landscape)" },
 ];
 
-// Sora 2 Image-to-Video only supports these two resolutions
 const SORA2_IMAGE_TO_VIDEO_RESOLUTIONS = [
-  { value: "1280x720", label: "1280x720 (Landscape)" },
-  { value: "720x1280", label: "720x1280 (Portrait)" },
+  { value: "1280x720", label: "1280×720 (Landscape)" },
+  { value: "720x1280", label: "720×1280 (Portrait)" },
 ];
 
 const SORA2_DURATIONS = [
@@ -59,6 +55,12 @@ const SORA2_DURATIONS = [
   { value: "8", label: "8 seconds" },
   { value: "12", label: "12 seconds" },
   { value: "20", label: "20 seconds" },
+];
+
+const GENERATION_MODES = [
+  { value: "text-to-video", label: "Text to Video", icon: Wand2, description: "Generate from text description" },
+  { value: "image-to-video", label: "Image to Video", icon: Image, description: "Animate a reference image" },
+  { value: "video-to-video", label: "Video Remix", icon: RefreshCw, description: "Remix an existing video" },
 ];
 
 export default function VideoGenerationForm({
@@ -75,15 +77,14 @@ export default function VideoGenerationForm({
   const [mode, setMode] = useState<string>("text-to-video");
   const [generateAudio, setGenerateAudio] = useState(true);
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [availableVideos, setAvailableVideos] = useState<Array<{ id: string; status: string; model: string }>>([]);
   const [showPromptBuilder, setShowPromptBuilder] = useState(false);
   const { isListening, startListening, stopListening } = useSpeechToText();
+  const [remixVideoId, setRemixVideoId] = useState("");
 
   useEffect(() => {
     loadSoraVersion();
   }, []);
-
 
   useEffect(() => {
     if (soraVersion === "sora-2" && mode === "video-to-video") {
@@ -110,7 +111,6 @@ export default function VideoGenerationForm({
   };
 
   const [width, height] = resolution.split("x");
-  const [remixVideoId, setRemixVideoId] = useState("");
 
   const handleSpeechToText = () => {
     if (isListening) {
@@ -135,90 +135,110 @@ export default function VideoGenerationForm({
     });
     setPrompt("");
     setImageFile(null);
-    setVideoFile(null);
     setRemixVideoId("");
     setGenerateAudio(false);
   };
 
   return (
-    <Card className="glass glow border-primary/20">
-      <CardHeader>
-        <div>
-          <CardTitle className="text-2xl">
-            Generate Video with {soraVersion === "sora-1" ? "Sora 1" : "Sora 2"}
-          </CardTitle>
-          <CardDescription>
-            Describe your video and customize the generation parameters
-          </CardDescription>
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="card-premium rounded-xl p-6">
+        <div className="flex items-start gap-4 mb-6">
+          <div className="p-3 rounded-xl bg-primary/10">
+            <Film className="h-6 w-6 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">
+              Generate with {soraVersion === "sora-1" ? "Sora 1" : "Sora 2"}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Create stunning AI videos from text descriptions
+            </p>
+          </div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
+
+        {/* Mode Selection for Sora 2 */}
         {soraVersion === "sora-2" && (
-          <div className="space-y-2">
-            <Label htmlFor="mode">Generation Mode</Label>
-            <Select value={mode} onValueChange={setMode}>
-              <SelectTrigger id="mode" className="glass border-primary/20">
-                <SelectValue placeholder="Select mode" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="text-to-video">Text to Video</SelectItem>
-                <SelectItem value="image-to-video">Image to Video</SelectItem>
-                <SelectItem value="video-to-video">Video-to-Video (Remix)</SelectItem>
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {GENERATION_MODES.map((m) => (
+              <button
+                key={m.value}
+                onClick={() => setMode(m.value)}
+                disabled={isGenerating}
+                className={`p-4 rounded-xl border transition-all text-left ${
+                  mode === m.value
+                    ? "border-primary bg-primary/10 shadow-[0_0_20px_hsla(47,100%,50%,0.2)]"
+                    : "border-border/50 hover:border-primary/50 hover:bg-primary/5"
+                }`}
+              >
+                <m.icon className={`h-5 w-5 mb-2 ${mode === m.value ? "text-primary" : "text-muted-foreground"}`} />
+                <p className={`font-medium text-sm ${mode === m.value ? "text-foreground" : "text-muted-foreground"}`}>
+                  {m.label}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">{m.description}</p>
+              </button>
+            ))}
           </div>
         )}
 
+        {/* Image Upload for Image-to-Video */}
         {soraVersion === "sora-2" && mode === "image-to-video" && (
-          <div className="space-y-2">
-            <Label htmlFor="imageUpload">Upload Reference Image</Label>
-            <div className="flex items-center gap-2">
+          <div className="mb-6 p-4 rounded-xl border border-dashed border-border/50 bg-card/50">
+            <Label className="text-sm font-medium mb-2 block">Reference Image</Label>
+            <div className="flex items-center gap-3">
               <Input
-                id="imageUpload"
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 onChange={(e) => setImageFile(e.target.files?.[0] || null)}
-                className="glass border-primary/20"
+                className="input-premium"
                 disabled={isGenerating}
               />
-              <Upload className="h-4 w-4 text-muted-foreground" />
+              <Upload className="h-5 w-5 text-muted-foreground shrink-0" />
             </div>
-            <p className="text-xs text-muted-foreground">
-              Accepted MIME types: image/jpeg, image/png, image/webp. Image must match selected resolution exactly.
+            <p className="text-xs text-muted-foreground mt-2">
+              Accepts JPEG, PNG, WebP. Image will be resized to match selected resolution.
             </p>
+            {imageFile && (
+              <div className="mt-3 flex items-center gap-2 text-sm text-primary">
+                <div className="w-2 h-2 rounded-full bg-primary" />
+                {imageFile.name}
+              </div>
+            )}
           </div>
         )}
 
+        {/* Video Selection for Video-to-Video */}
         {soraVersion === "sora-2" && mode === "video-to-video" && (
-          <div className="space-y-2">
-            <Label htmlFor="remixVideoId">Select Video to Remix</Label>
+          <div className="mb-6 p-4 rounded-xl border border-dashed border-border/50 bg-card/50">
+            <Label className="text-sm font-medium mb-2 block">Select Video to Remix</Label>
             <Select value={remixVideoId} onValueChange={setRemixVideoId}>
-              <SelectTrigger id="remixVideoId" className="glass border-primary/20">
-                <SelectValue placeholder="Select a video" />
+              <SelectTrigger className="input-premium">
+                <SelectValue placeholder="Choose a video..." />
               </SelectTrigger>
               <SelectContent>
                 {availableVideos.length === 0 ? (
-                  <SelectItem value="no-videos" disabled>
-                    No videos available
-                  </SelectItem>
+                  <SelectItem value="no-videos" disabled>No completed videos available</SelectItem>
                 ) : (
                   availableVideos.map((video, index) => (
                     <SelectItem key={video.id} value={video.id}>
-                      {video.id} {index === 0 ? "(Latest)" : ""}
+                      {video.id.slice(0, 20)}... {index === 0 ? "(Latest)" : ""}
                     </SelectItem>
                   ))
                 )}
               </SelectContent>
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Select a previously completed video to reuse its structure, motion, and framing
+            <p className="text-xs text-muted-foreground mt-2">
+              Reuse the structure, motion, and framing from a previous video
             </p>
           </div>
         )}
 
-        <div className="space-y-2">
+        {/* Prompt Input */}
+        <div className="space-y-3">
           <div className="flex items-center justify-between">
-            <Label htmlFor="prompt">Video Prompt</Label>
+            <Label htmlFor="prompt" className="text-sm font-medium">
+              Video Prompt
+            </Label>
             <div className="flex gap-2">
               <Button
                 type="button"
@@ -226,19 +246,10 @@ export default function VideoGenerationForm({
                 size="sm"
                 onClick={handleSpeechToText}
                 disabled={isGenerating}
-                className={`gap-1 ${isListening ? 'bg-destructive/10 border-destructive' : ''}`}
+                className={`h-8 text-xs ${isListening ? 'bg-destructive/10 border-destructive text-destructive' : 'hover:bg-primary/10 hover:border-primary/50'}`}
               >
-                {isListening ? (
-                  <>
-                    <MicOff className="h-4 w-4" />
-                    Stop Recording
-                  </>
-                ) : (
-                  <>
-                    <Mic className="h-4 w-4" />
-                    Voice Input
-                  </>
-                )}
+                {isListening ? <MicOff className="h-3.5 w-3.5 mr-1.5" /> : <Mic className="h-3.5 w-3.5 mr-1.5" />}
+                {isListening ? "Stop" : "Voice"}
               </Button>
               <Button
                 type="button"
@@ -246,31 +257,33 @@ export default function VideoGenerationForm({
                 size="sm"
                 onClick={() => setShowPromptBuilder(true)}
                 disabled={isGenerating}
-                className="gap-1"
+                className="h-8 text-xs hover:bg-primary/10 hover:border-primary/50"
               >
-                <Sparkles className="h-4 w-4" />
-                Generate Prompt
+                <Sparkles className="h-3.5 w-3.5 mr-1.5" />
+                AI Generate
               </Button>
             </div>
           </div>
+          
           <Textarea
             id="prompt"
-            placeholder="A train journey through mountains, with scenic views and dramatic lighting..."
+            placeholder="Describe your video in detail... e.g., 'Aerial drone shot of a misty mountain range at sunrise, with golden light piercing through clouds, cinematic slow movement'"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
-            className="min-h-[120px] glass border-primary/20 resize-none"
+            className="min-h-[140px] input-premium resize-none text-base leading-relaxed"
             disabled={isGenerating || isListening}
           />
-          <p className="text-xs text-muted-foreground">
-            For best results, describe shot type, subject, action, setting, and lighting.
-            <br />
-            <strong>Example:</strong> "Wide shot of a child flying a red kite in a grassy park, golden hour sunlight, camera slowly pans upward."
-          </p>
+          
           {isListening && (
-            <p className="text-xs text-primary font-medium animate-pulse">
-              🎤 Listening... Speak in English or Bahasa Melayu
-            </p>
+            <div className="flex items-center gap-2 text-sm text-primary animate-pulse">
+              <div className="w-2 h-2 rounded-full bg-primary animate-ping" />
+              Listening... Speak your prompt
+            </div>
           )}
+          
+          <p className="text-xs text-muted-foreground">
+            <strong>Pro tip:</strong> Include shot type, subject, action, setting, and lighting for best results
+          </p>
         </div>
 
         <PromptBuilderModal
@@ -278,16 +291,22 @@ export default function VideoGenerationForm({
           onOpenChange={setShowPromptBuilder}
           onUsePrompt={(generatedPrompt) => setPrompt(generatedPrompt)}
         />
+      </div>
 
-        {/* Hide resolution and duration for video-to-video remix mode */}
-        {!(soraVersion === "sora-2" && mode === "video-to-video") && (
-          <div className="grid gap-4 md:grid-cols-[1fr_300px]">
-            <div className="grid grid-cols-2 gap-4">
+      {/* Settings Section */}
+      {!(soraVersion === "sora-2" && mode === "video-to-video") && (
+        <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+          {/* Generation Settings */}
+          <div className="card-premium rounded-xl p-6">
+            <h3 className="text-sm font-semibold mb-4 text-muted-foreground uppercase tracking-wider">
+              Generation Settings
+            </h3>
+            <div className="grid gap-4 sm:grid-cols-3">
               <div className="space-y-2">
-                <Label htmlFor="resolution">Resolution</Label>
+                <Label htmlFor="resolution" className="text-sm">Resolution</Label>
                 <Select value={resolution} onValueChange={setResolution}>
-                  <SelectTrigger id="resolution" className="glass border-primary/20">
-                    <SelectValue placeholder="Select resolution" />
+                  <SelectTrigger className="input-premium">
+                    <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
                     {(soraVersion === "sora-2" && mode === "image-to-video" 
@@ -302,25 +321,18 @@ export default function VideoGenerationForm({
                     ))}
                   </SelectContent>
                 </Select>
-                {soraVersion === "sora-2" && mode === "image-to-video" && (
-                  <p className="text-xs text-muted-foreground">
-                    Image-to-video only supports 1280x720 (landscape) or 720x1280 (portrait). Your image will be automatically resized to match.
-                  </p>
-                )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="duration">Duration (seconds)</Label>
+                <Label htmlFor="duration" className="text-sm">Duration</Label>
                 {soraVersion === "sora-2" ? (
                   <Select value={duration} onValueChange={setDuration}>
-                    <SelectTrigger id="duration" className="glass border-primary/20">
-                      <SelectValue placeholder="Select duration" />
+                    <SelectTrigger className="input-premium">
+                      <SelectValue placeholder="Select" />
                     </SelectTrigger>
                     <SelectContent>
                       {SORA2_DURATIONS.map((dur) => (
-                        <SelectItem key={dur.value} value={dur.value}>
-                          {dur.label}
-                        </SelectItem>
+                        <SelectItem key={dur.value} value={dur.value}>{dur.label}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
@@ -331,15 +343,14 @@ export default function VideoGenerationForm({
                     value={duration}
                     onChange={(e) => setDuration(e.target.value)}
                     min="1"
-                    placeholder="e.g., 12"
-                    className="glass border-primary/20"
+                    className="input-premium"
                     disabled={isGenerating}
                   />
                 )}
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="variants">Variants</Label>
+                <Label htmlFor="variants" className="text-sm">Variants</Label>
                 <Input
                   id="variants"
                   type="number"
@@ -347,43 +358,59 @@ export default function VideoGenerationForm({
                   onChange={(e) => setVariants(e.target.value)}
                   min="1"
                   max="4"
-                  className="glass border-primary/20"
+                  className="input-premium"
                   disabled={isGenerating}
                 />
               </div>
             </div>
-            
-            <PriceEstimator
-              width={width}
-              height={height}
-              duration={duration}
-              variants={variants}
-              soraVersion={soraVersion}
-            />
+          </div>
+          
+          {/* Cost Estimator */}
+          <PriceEstimator
+            width={width}
+            height={height}
+            duration={duration}
+            variants={variants}
+            soraVersion={soraVersion}
+          />
+        </div>
+      )}
+
+      {/* Progress Bar */}
+      {isGenerating && (
+        <div className="card-premium rounded-xl p-6 space-y-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="font-medium">Generating your video...</span>
+            <span className="text-primary">{progress}%</span>
+          </div>
+          <Progress value={progress} className="h-2" />
+          <p className="text-sm text-muted-foreground text-center">{progressMessage}</p>
+        </div>
+      )}
+
+      {/* Generate Button */}
+      <Button
+        onClick={handleSubmit}
+        disabled={isGenerating || !prompt.trim()}
+        className="w-full h-14 text-lg font-semibold btn-premium"
+        size="lg"
+      >
+        {isGenerating ? (
+          <div className="flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            Generating...
+          </div>
+        ) : (
+          <div className="flex items-center gap-3">
+            <Play className="h-5 w-5" />
+            Generate Video
           </div>
         )}
-
-        {isGenerating && (
-          <div className="space-y-2">
-            <Progress value={progress} className="h-2" />
-            <p className="text-sm text-muted-foreground text-center">{progressMessage}</p>
-          </div>
-        )}
-
-        <Button
-          onClick={handleSubmit}
-          disabled={isGenerating || !prompt.trim()}
-          className="w-full"
-          size="lg"
-        >
-          <Play className="mr-2 h-5 w-5" />
-          {isGenerating ? "Generating..." : "Generate Video"}
-        </Button>
-        <p className="text-xs text-muted-foreground text-center">
-          Videos are generated using Azure OpenAI {soraVersion === "sora-1" ? "Sora 1" : "Sora 2"} model. 
-          Generation typically takes 1-3 minutes.
-        </p>
-      </CardContent>
-    </Card>
+      </Button>
+      
+      <p className="text-xs text-center text-muted-foreground">
+        Generation typically takes 1-3 minutes depending on complexity and duration
+      </p>
+    </div>
   );
 }

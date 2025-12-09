@@ -413,4 +413,4 @@ export async function listVideos(
   }
 }
 
-// Legacy functions removed - using Appwrite storage now
+// Legacy functions removed - using Neon PostgreSQL storage now

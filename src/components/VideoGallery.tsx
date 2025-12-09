@@ -1,7 +1,6 @@
-import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Trash2, Sparkles, Download, Copy } from "lucide-react";
-import { VideoMetadata } from "@/lib/appwriteStorage";
+import { Trash2, Sparkles, Download, Copy, Play, ExternalLink, Film } from "lucide-react";
+import { VideoMetadata } from "@/lib/videoStorage";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 
@@ -41,121 +40,190 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
       const href = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = href;
-      a.download = `video_${new Date().toISOString().replace(/[:.]/g, '-')}.mp4`;
+      a.download = `octo_${new Date().toISOString().replace(/[:.]/g, '-')}.mp4`;
       document.body.appendChild(a);
       a.click();
       a.remove();
       URL.revokeObjectURL(href);
       toast.success("Download started");
-    } catch (e: any) {
-      toast.error(e?.message || "Download failed");
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Download failed";
+      toast.error(message);
     }
   };
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-xl font-semibold">Your Videos</h2>
+    <div className="space-y-6">
+      {/* Section Header */}
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-primary/10">
+          <Film className="h-5 w-5 text-primary" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold">Recent Videos</h2>
+          <p className="text-sm text-muted-foreground">Your latest generated videos</p>
+        </div>
+      </div>
       
-      {/* Direct Video URL Card */}
+      {/* Direct Video URL Banner */}
       {directVideoUrl && (
-        <Card className="glass glow border-primary/20 bg-primary/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 mt-1">
-                <Download className="h-5 w-5 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-sm mb-1">Video Ready - Direct Download</h3>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Your video is ready! Download it directly from Azure or save it to your library.
+        <div className="card-premium rounded-xl p-5 border-primary/30 bg-primary/5 shimmer">
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-xl bg-primary/10">
+              <Download className="h-5 w-5 text-primary" />
+            </div>
+            <div className="flex-1 min-w-0 space-y-3">
+              <div>
+                <h3 className="font-semibold">Video Ready!</h3>
+                <p className="text-sm text-muted-foreground">
+                  Your video is ready. Download it directly or copy the URL.
                 </p>
-                <div className="bg-background/50 rounded p-2 mb-3 break-all text-xs font-mono">
-                  {directVideoUrl}
+              </div>
+              <div className="bg-background/50 rounded-lg p-3 break-all text-xs font-mono text-muted-foreground">
+                {directVideoUrl.slice(0, 80)}...
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  onClick={() => downloadWithApiKey(directVideoUrl)}
+                  className="btn-premium"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => copyToClipboard(directVideoUrl)}
+                  className="hover:bg-primary/10"
+                >
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy URL
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.open(directVideoUrl, '_blank')}
+                  className="hover:bg-primary/10"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Empty State */}
+      {videos.length === 0 && !directVideoUrl && (
+        <div className="card-premium rounded-xl p-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+            <Sparkles className="h-8 w-8 text-primary" />
+          </div>
+          <h3 className="font-semibold mb-2">No videos yet</h3>
+          <p className="text-sm text-muted-foreground">
+            Generate your first video using the form above
+          </p>
+        </div>
+      )}
+
+      {/* Video Grid */}
+      {videos.length > 0 && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {videos.map((video, index) => (
+            <div 
+              key={video.id} 
+              className="card-premium rounded-xl overflow-hidden group animate-in"
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              {/* Video Preview */}
+              <div className="relative aspect-video bg-black/50">
+                <video
+                  src={video.url}
+                  className="w-full h-full object-cover"
+                  preload="auto"
+                  crossOrigin="anonymous"
+                  muted
+                  playsInline
+                  loop
+                  onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.pause();
+                    e.currentTarget.currentTime = 0;
+                  }}
+                  onLoadedData={(e) => {
+                    // Seek to first frame to show thumbnail
+                    const video = e.currentTarget;
+                    if (video.currentTime === 0) {
+                      video.currentTime = 0.1;
+                    }
+                  }}
+                />
+                
+                {/* Play Indicator */}
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="p-3 rounded-full bg-white/10 backdrop-blur-sm">
+                    <Play className="h-6 w-6 text-white" />
+                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => downloadWithApiKey(directVideoUrl)}
-                    className="flex-1"
+                
+                {/* Model Badge */}
+                <div className="absolute top-2 left-2">
+                  <Badge 
+                    className={`text-xs ${
+                      video.soraVersion === "sora-2" 
+                        ? "bg-primary text-primary-foreground" 
+                        : "bg-white/10 backdrop-blur-sm text-white border-0"
+                    }`}
                   >
-                    <Download className="h-3 w-3 mr-1" />
-                    Download
+                    {video.soraVersion === "sora-2" ? "Sora 2" : "Sora 1"}
+                  </Badge>
+                </div>
+                
+                {/* Duration Badge */}
+                <div className="absolute top-2 right-2">
+                  <span className="text-xs text-white bg-black/50 backdrop-blur-sm px-2 py-1 rounded">
+                    {video.duration}s
+                  </span>
+                </div>
+              </div>
+              
+              {/* Video Info */}
+              <div className="p-4 space-y-3">
+                <p className="text-sm line-clamp-2 leading-relaxed">{video.prompt}</p>
+                
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{new Date(video.timestamp).toLocaleDateString()}</span>
+                  <span>{video.width}×{video.height}</span>
+                </div>
+                
+                {/* Actions */}
+                <div className="flex items-center gap-1.5 pt-2 border-t border-border/50">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      const vid = video.azureVideoId || video.id;
+                      const fullId = vid?.startsWith("video_") ? vid : `video_${vid}`;
+                      navigator.clipboard.writeText(fullId);
+                      toast.success("Video ID copied");
+                    }}
+                    className="flex-1 h-8 text-xs hover:bg-primary/10"
+                  >
+                    <Copy className="h-3.5 w-3.5 mr-1.5" />
+                    Copy ID
                   </Button>
                   <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => copyToClipboard(directVideoUrl)}
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onDelete(video.id)}
+                    className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive"
                   >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copy URL
+                    <Trash2 className="h-3.5 w-3.5" />
                   </Button>
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      {videos.length === 0 && !directVideoUrl ? (
-        <Card className="glass border-primary/20">
-          <CardContent className="py-12 text-center">
-            <Sparkles className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <p className="text-muted-foreground">No videos yet. Generate your first one!</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {videos.map((video) => (
-            <Card key={video.id} className="glass border-primary/20 overflow-hidden group hover:border-primary/40 transition-all">
-              <CardContent className="p-0">
-                <div className="relative aspect-video bg-black">
-                  <video
-                    src={video.url}
-                    controls
-                    preload="metadata"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="p-4 space-y-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-sm line-clamp-2 flex-1">{video.prompt}</p>
-                    <Badge variant="outline" className="text-xs shrink-0">
-                      {video.soraVersion || 'sora-1'}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        const vid = (video as any).azureVideoId || video.id;
-                        const fullId = vid?.startsWith("video_") ? vid : `video_${vid}`;
-                        navigator.clipboard.writeText(fullId);
-                        toast.success("Video ID copied to clipboard");
-                      }}
-                      className="text-xs h-7 px-2 justify-start overflow-hidden"
-                      title={(video as any).azureVideoId || video.id}
-                    >
-                      <Copy className="h-3 w-3 mr-1 flex-shrink-0" />
-                      <span className="truncate">{((video as any).azureVideoId || video.id)}</span>
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{new Date(video.timestamp).toLocaleDateString()}</span>
-                    <span>{video.width}x{video.height} • {video.duration}s</span>
-                  </div>
-                  <div className="flex items-center justify-end">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onDelete(video.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
           ))}
         </div>
       )}
