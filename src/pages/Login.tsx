@@ -20,7 +20,7 @@ export default function Login() {
       try {
         const user = await getCurrentUser();
         if (user) {
-          navigate("/");
+          navigate("/dashboard");
         }
       } catch {
         // Not logged in, stay on login page
@@ -38,7 +38,7 @@ export default function Login() {
     try {
       await createSession(email, password);
       toast.success("Welcome back!");
-      navigate("/");
+      navigate("/dashboard");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Login failed";
       toast.error(message);

@@ -442,3 +442,53 @@
   outline: 2px solid hsl(47, 100%, 50%);
   outline-offset: 2px;
 }
+
+/* ============================================
+   DIALOG & POPUP CENTERING
+   ============================================ */
+
+/* Radix Dialog/AlertDialog centering */
+[data-radix-popper-content-wrapper] {
+  z-index: 50 !important;
+}
+
+/* Ensure dialogs are centered */
+[role="dialog"],
+[role="alertdialog"] {
+  position: fixed !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+/* Sonner toast container - ensure it's centered at top */
+[data-sonner-toaster] {
+  --offset: 32px !important;
+}
+
+/* Radix Popover and Select centering */
+[data-radix-popper-content-wrapper] {
+  transform-origin: var(--radix-popper-transform-origin);
+}
+
+/* Dialog overlay */
+[data-state="open"][data-radix-dialog-overlay],
+[data-state="open"][data-radix-alert-dialog-overlay] {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background-color: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+/* Dialog content */
+[data-state="open"][data-radix-dialog-content],
+[data-state="open"][data-radix-alert-dialog-content] {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 50;
+  max-height: 85vh;
+  overflow-y: auto;
+}

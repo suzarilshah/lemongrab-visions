@@ -21,7 +21,7 @@ export default function SignUp() {
       try {
         const user = await getCurrentUser();
         if (user) {
-          navigate("/");
+          navigate("/dashboard");
         }
       } catch {
         // Not logged in, stay on signup page
@@ -41,7 +41,7 @@ export default function SignUp() {
       toast.success("Account created! Logging you in...");
       await createSession(email, password);
       toast.success("Welcome to Octo!");
-      navigate("/");
+      navigate("/dashboard");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Failed to create account";
       toast.error(message);
