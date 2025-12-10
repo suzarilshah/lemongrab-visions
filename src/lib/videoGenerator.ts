@@ -98,7 +98,6 @@ export async function generateVideo(params: VideoGenerationParams, controller?: 
     const secondsStr = String(duration);
     const validSeconds = ['4', '8', '12'];
     formData.append('seconds', validSeconds.includes(secondsStr) ? secondsStr : '4');
-    formData.append('n', '1');
     
     if (inputReference) {
       // Resize the image to match the requested dimensions
@@ -137,7 +136,6 @@ export async function generateVideo(params: VideoGenerationParams, controller?: 
       // - 'model' should match deployment name
       // - 'seconds' must be a string ("4", "8", or "12")
       // - 'size' must be one of: '720x1280', '1280x720', '1024x1792', '1792x1024'
-      // - 'n' is number of videos to generate
       const secondsStr = String(duration);
       // Validate seconds is one of the allowed values
       const validSeconds = ['4', '8', '12'];
@@ -148,7 +146,6 @@ export async function generateVideo(params: VideoGenerationParams, controller?: 
         prompt,
         size: `${width}x${height}`,
         seconds: finalSeconds,
-        n: 1,
       };
 
       console.log('[VideoGen] Sora 2 request body:', JSON.stringify(requestBody));
