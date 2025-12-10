@@ -106,7 +106,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://suzar-mh225uaw-eastus2.cognitiveservices.azure.com/openai/v1/video/generations/jobs?api-version=preview",
+        "url": "https://suzar-mh225uaw-eastus2.cognitiveservices.azure.com/openai/v1/videos?api-version=preview",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -124,7 +124,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={\n  \"model\": \"sora-2\",\n  \"prompt\": \"{{ $json.visual_prompt.replace(/\"/g, '\\\\\"').replace(/\\n/g, ' ') }}\",\n  \"n_seconds\": {{ Math.min($json.duration || 10, 20) }},\n  \"height\": 720,\n  \"width\": 1280\n}"
+        "jsonBody": "={\n  \"model\": \"sora-2\",\n  \"prompt\": \"{{ $json.visual_prompt.replace(/\"/g, '\\\\\"').replace(/\\n/g, ' ') }}\",\n  \"size\": \"1280x720\",\n  \"seconds\": \"{{ Math.min($json.duration || 10, 20) }}\"\n}"
       },
       "id": "sora-create-video",
       "name": "Sora 2 - Create Video Job",
@@ -157,7 +157,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://suzar-mh225uaw-eastus2.cognitiveservices.azure.com/openai/v1/video/generations/jobs/{{ $json.sora_job_id }}?api-version=preview",
+        "url": "=https://suzar-mh225uaw-eastus2.cognitiveservices.azure.com/openai/v1/videos/{{ $json.sora_job_id }}?api-version=preview",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,
@@ -179,7 +179,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check Sora status and decide next step\nconst statusResponse = $input.first().json;\nconst previousData = $('Store Sora Job ID').item.json;\n\nconst status = statusResponse.status;\nconst pollCount = (previousData.poll_count || 0) + 1;\nconst maxPolls = 60; // 10 minutes max (60 * 10 seconds)\n\nif (status === 'completed' || status === 'succeeded') {\n  return [{\n    json: {\n      ...previousData,\n      sora_status: 'completed',\n      video_ready: true,\n      poll_count: pollCount\n    }\n  }];\n} else if (status === 'failed') {\n  return [{\n    json: {\n      ...previousData,\n      sora_status: 'failed',\n      video_ready: false,\n      error: statusResponse.error?.message || 'Video generation failed',\n      poll_count: pollCount\n    }\n  }];\n} else if (pollCount >= maxPolls) {\n  return [{\n    json: {\n      ...previousData,\n      sora_status: 'timeout',\n      video_ready: false,\n      error: 'Video generation timed out after 10 minutes',\n      poll_count: pollCount\n    }\n  }];\n} else {\n  // Still processing\n  return [{\n    json: {\n      ...previousData,\n      sora_status: status,\n      video_ready: false,\n      poll_count: pollCount,\n      progress: statusResponse.progress || 0\n    }\n  }];\n}"
+        "jsCode": "// Check Sora 2 status and decide next step\nconst statusResponse = $input.first().json;\nconst previousData = $('Store Sora Job ID').item.json;\n\nconst status = statusResponse.status;\nconst pollCount = (previousData.poll_count || 0) + 1;\nconst maxPolls = 90; // 15 minutes max (90 * 10 seconds)\n\n// Sora 2 uses 'completed', Sora 1 uses 'succeeded'\nif (status === 'completed' || status === 'succeeded') {\n  return [{\n    json: {\n      ...previousData,\n      sora_status: 'completed',\n      video_ready: true,\n      poll_count: pollCount\n    }\n  }];\n} else if (status === 'failed') {\n  return [{\n    json: {\n      ...previousData,\n      sora_status: 'failed',\n      video_ready: false,\n      error: statusResponse.error?.message || statusResponse.error || 'Video generation failed',\n      poll_count: pollCount\n    }\n  }];\n} else if (pollCount >= maxPolls) {\n  return [{\n    json: {\n      ...previousData,\n      sora_status: 'timeout',\n      video_ready: false,\n      error: 'Video generation timed out after 15 minutes',\n      poll_count: pollCount\n    }\n  }];\n} else {\n  // Still processing (in_progress, processing, queued, running)\n  return [{\n    json: {\n      ...previousData,\n      sora_status: status,\n      video_ready: false,\n      poll_count: pollCount,\n      progress: statusResponse.progress || 0\n    }\n  }];\n}"
       },
       "id": "check-sora-status",
       "name": "Check Sora Status",
@@ -257,7 +257,7 @@
     {
       "parameters": {
         "method": "GET",
-        "url": "=https://suzar-mh225uaw-eastus2.cognitiveservices.azure.com/openai/v1/video/generations/jobs/{{ $json.sora_job_id }}/content/video?api-version=preview",
+        "url": "=https://suzar-mh225uaw-eastus2.cognitiveservices.azure.com/openai/v1/videos/{{ $json.sora_job_id }}/content?api-version=preview",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendHeaders": true,

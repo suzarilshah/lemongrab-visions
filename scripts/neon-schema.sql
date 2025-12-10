@@ -150,6 +150,77 @@ CREATE TRIGGER update_video_generations_updated_at
 -- since we're using a pooled connection string.
 -- The queries will filter by user_id.
 
+-- ============================================
+-- 7. MOVIE_PROJECTS TABLE (AI Movie Generation)
+-- ============================================
+CREATE TABLE IF NOT EXISTS movie_projects (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    script TEXT NOT NULL,
+    style_preferences JSONB DEFAULT '{}',
+    status VARCHAR(50) DEFAULT 'draft',
+    total_scenes INTEGER DEFAULT 0,
+    completed_scenes INTEGER DEFAULT 0,
+    final_video_url TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_movie_projects_user_id ON movie_projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_movie_projects_status ON movie_projects(status);
+
+-- ============================================
+-- 8. MOVIE_SCENES TABLE (Individual Scenes)
+-- ============================================
+CREATE TABLE IF NOT EXISTS movie_scenes (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    movie_id UUID REFERENCES movie_projects(id) ON DELETE CASCADE,
+    scene_number INTEGER NOT NULL,
+    title VARCHAR(255),
+    duration INTEGER,
+    visual_prompt TEXT NOT NULL,
+    camera_movement VARCHAR(100),
+    shot_type VARCHAR(100),
+    voiceover_text TEXT,
+    transition VARCHAR(50) DEFAULT 'cut',
+    video_url TEXT,
+    audio_url TEXT,
+    assembled_url TEXT,
+    status VARCHAR(50) DEFAULT 'pending',
+    sora_job_id VARCHAR(255),
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_movie_scenes_movie_id ON movie_scenes(movie_id);
+
+-- ============================================
+-- 9. MOVIE_JOBS TABLE (n8n Job Tracking)
+-- ============================================
+CREATE TABLE IF NOT EXISTS movie_jobs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    movie_id UUID REFERENCES movie_projects(id) ON DELETE CASCADE,
+    n8n_execution_id VARCHAR(255),
+    status VARCHAR(50) DEFAULT 'queued',
+    progress INTEGER DEFAULT 0,
+    current_step VARCHAR(100),
+    error_message TEXT,
+    started_at TIMESTAMP WITH TIME ZONE,
+    completed_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_movie_jobs_movie_id ON movie_jobs(movie_id);
+
+-- Add triggers for movie_projects
+DROP TRIGGER IF EXISTS update_movie_projects_updated_at ON movie_projects;
+CREATE TRIGGER update_movie_projects_updated_at
+    BEFORE UPDATE ON movie_projects
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- Success message
 SELECT 'Schema created successfully!' as status;
 

@@ -226,6 +226,9 @@ export default function MovieStudio() {
   };
 
   const pollForUpdates = async (projectId: string) => {
+    let consecutiveErrors = 0;
+    const maxConsecutiveErrors = 5;
+
     const pollInterval = setInterval(async () => {
       try {
         // Fetch project status
@@ -234,10 +237,19 @@ export default function MovieStudio() {
         `;
 
         if (projectResult.length === 0) {
-          clearInterval(pollInterval);
+          console.warn("Project not found, continuing to poll...");
+          consecutiveErrors++;
+          if (consecutiveErrors >= maxConsecutiveErrors) {
+            clearInterval(pollInterval);
+            setIsGenerating(false);
+            toast.error("Project not found", {
+              description: "The movie project could not be found in the database."
+            });
+          }
           return;
         }
 
+        consecutiveErrors = 0; // Reset on success
         const project = projectResult[0];
 
         // Fetch scenes
@@ -261,18 +273,36 @@ export default function MovieStudio() {
 
         setScenes(fetchedScenes);
 
-        // Calculate progress
+        // Calculate progress based on actual scene count (scenes may be created after initial poll)
         const completedScenes = fetchedScenes.filter((s) => s.status === "completed").length;
+        const generatingScenes = fetchedScenes.filter((s) => s.status === "generating").length;
         const totalScenes = project.total_scenes || targetScenes;
-        const progress = 15 + (completedScenes / totalScenes) * 80;
+
+        // More granular progress calculation
+        let progress = 15; // Base after n8n receives request
+        if (fetchedScenes.length > 0) {
+          progress = 20; // Script analyzed, scenes created
+          // Each scene is worth (80 / totalScenes) percent
+          const sceneProgress = (completedScenes / totalScenes) * 75;
+          const partialProgress = (generatingScenes / totalScenes) * 10; // Partial credit for generating
+          progress = 20 + sceneProgress + partialProgress;
+        }
         setOverallProgress(Math.min(progress, 95));
 
-        // Update current step
+        // Update current step with more detail
         const generatingScene = fetchedScenes.find((s) => s.status === "generating");
-        if (generatingScene) {
-          setCurrentStep(`Generating Scene ${generatingScene.scene_number}: ${generatingScene.title}`);
+        const failedScene = fetchedScenes.find((s) => s.status === "failed");
+
+        if (failedScene) {
+          setCurrentStep(`Scene ${failedScene.scene_number} failed - retrying...`);
+        } else if (generatingScene) {
+          setCurrentStep(`Generating Scene ${generatingScene.scene_number}/${totalScenes}: ${generatingScene.title}`);
+        } else if (fetchedScenes.length === 0) {
+          setCurrentStep("Analyzing script and creating storyboard...");
         } else if (completedScenes === totalScenes && project.status !== "completed") {
           setCurrentStep("Assembling final video...");
+        } else if (completedScenes > 0) {
+          setCurrentStep(`${completedScenes}/${totalScenes} scenes completed`);
         }
 
         // Check if complete
@@ -301,16 +331,34 @@ export default function MovieStudio() {
         } else if (project.status === "failed") {
           clearInterval(pollInterval);
           setIsGenerating(false);
-          toast.error("Movie generation failed");
+          toast.error("Movie generation failed", {
+            description: "Check the n8n workflow logs for details."
+          });
         }
 
       } catch (error) {
         console.error("Polling error:", error);
+        consecutiveErrors++;
+        if (consecutiveErrors >= maxConsecutiveErrors) {
+          clearInterval(pollInterval);
+          setIsGenerating(false);
+          toast.error("Connection error", {
+            description: "Lost connection to the server. Please refresh and try again."
+          });
+        }
       }
-    }, 3000); // Poll every 3 seconds
+    }, 5000); // Poll every 5 seconds (reduced from 3s to be less aggressive)
 
-    // Clear interval after 15 minutes max
-    setTimeout(() => clearInterval(pollInterval), 15 * 60 * 1000);
+    // Clear interval after 20 minutes max (Sora 2 can take longer)
+    setTimeout(() => {
+      clearInterval(pollInterval);
+      if (isGenerating) {
+        setIsGenerating(false);
+        toast.error("Generation timeout", {
+          description: "The movie generation took too long. Please try again with a shorter script."
+        });
+      }
+    }, 20 * 60 * 1000);
   };
 
   return (

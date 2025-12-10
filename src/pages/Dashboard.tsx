@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { getCurrentUser, deleteSession, User } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Settings, LogOut, Moon, Sun, Images, DollarSign, List, X, PlayCircle, Sparkles, Zap } from "lucide-react";
+import { Settings, LogOut, Moon, Sun, Images, DollarSign, List, X, PlayCircle, Sparkles, Zap, Scissors, Film } from "lucide-react";
 import logo from "@/assets/logo.svg";
 import { generateVideo } from "@/lib/videoGenerator";
 import { 
@@ -395,6 +395,15 @@ export default function Dashboard() {
                 ) : (
                   <Moon className="h-5 w-5" />
                 )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/video-editor")}
+                className="hover:bg-primary/10"
+                title="Video Editor"
+              >
+                <Scissors className="h-5 w-5" />
               </Button>
               <Button
                 variant="ghost"

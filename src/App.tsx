@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import Landing from "./pages/Landing";
 import MovieStudio from "./pages/MovieStudio";
+import VideoEditor from "./pages/VideoEditor";
 
 const queryClient = new QueryClient();
 
@@ -32,6 +33,8 @@ const App = () => (
             <Route path="/settings" element={<Settings />} />
             <Route path="/gallery" element={<Gallery />} />
             <Route path="/movie-studio" element={<MovieStudio />} />
+            <Route path="/video-editor" element={<VideoEditor />} />
+            <Route path="/video-editor/:projectId" element={<VideoEditor />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

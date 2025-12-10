@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { getCurrentUser, User } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trash2, Download, Copy, Play, Pause, Film, Sparkles } from "lucide-react";
+import { ArrowLeft, Trash2, Download, Copy, Play, Pause, Film, Sparkles, Scissors } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import logo from "@/assets/logo.svg";
 import { useNavigate } from "react-router-dom";
@@ -109,8 +109,17 @@ export default function Gallery() {
             </div>
             
             {user && (
-              <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                <span>{videos.length} video{videos.length !== 1 ? 's' : ''}</span>
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("/video-editor")}
+                  className="hover:bg-primary/10"
+                >
+                  <Scissors className="mr-2 h-4 w-4" />
+                  Edit Videos
+                </Button>
+                <span className="text-sm text-muted-foreground">{videos.length} video{videos.length !== 1 ? 's' : ''}</span>
               </div>
             )}
           </div>
