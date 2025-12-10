@@ -41,6 +41,8 @@ import Timeline from '@/components/editor/Timeline/Timeline';
 import MediaLibrary from '@/components/editor/Library/MediaLibrary';
 import PreviewPlayer from '@/components/editor/Preview/PreviewPlayer';
 import ExportDialog from '@/components/editor/ExportDialog';
+import FillerGeneratorDialog from '@/components/editor/FillerGeneratorDialog';
+import { Gap } from '@/lib/editor/fillerGenerator';
 
 // State management
 import { useEditorState, createDefaultProject } from '@/lib/editor/timelineState';
@@ -127,6 +129,32 @@ export default function VideoEditor() {
     // Could open properties panel here
     toast.info('Clip selected', {
       description: 'Use the trim handles to adjust duration',
+    });
+  }, [actions]);
+
+  // Handle AI filler generation
+  const handleFillerGenerated = useCallback((gap: Gap, result: { url: string; id: string; duration: number }) => {
+    // Add the generated filler clip to the timeline at the gap position
+    const newClip: Omit<Clip, 'id' | 'trackId' | 'selected'> = {
+      videoId: result.id,
+      sourceUrl: result.url,
+      thumbnailUrl: undefined,
+      prompt: 'AI Generated Filler',
+      startTime: gap.startTime,
+      duration: result.duration,
+      inPoint: 0,
+      outPoint: result.duration,
+      sourceDuration: result.duration,
+      audioEnabled: true,
+      volume: 1,
+      opacity: 1,
+    };
+
+    actions.addClip(gap.trackId, newClip);
+    actions.pushHistory();
+
+    toast.success('AI filler added to timeline', {
+      description: `${result.duration}s clip added at ${Math.floor(gap.startTime / 60)}:${String(Math.floor(gap.startTime % 60)).padStart(2, '0')}`,
     });
   }, [actions]);
 
@@ -335,6 +363,28 @@ export default function VideoEditor() {
               </TooltipTrigger>
               <TooltipContent>Delete (Del)</TooltipContent>
             </Tooltip>
+
+            <div className="w-px h-4 bg-border mx-2" />
+
+            <FillerGeneratorDialog
+              project={state.project}
+              onFillerGenerated={handleFillerGenerated}
+              trigger={
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 gap-1.5 text-primary hover:text-primary"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      AI Filler
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Generate AI content to fill gaps</TooltipContent>
+                </Tooltip>
+              }
+            />
           </div>
 
           {/* Right section */}
