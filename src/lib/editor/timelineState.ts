@@ -72,7 +72,11 @@ function calculateProjectDuration(tracks: Track[]): number {
       }
     }
   }
-  return maxDuration + EDITOR_CONSTANTS.TIMELINE_PADDING / EDITOR_CONSTANTS.DEFAULT_ZOOM;
+  // Ensure minimum duration of 60 seconds, plus buffer for scrolling/adding new clips
+  // Add 30 seconds buffer after the last clip to allow easy extension
+  const bufferSeconds = 30;
+  const minDuration = 60;
+  return Math.max(minDuration, maxDuration + bufferSeconds);
 }
 
 function findClipById(tracks: Track[], clipId: string): { clip: Clip; trackIndex: number; clipIndex: number } | null {
@@ -714,26 +718,6 @@ export function createDefaultProject(name: string = 'Untitled Project'): EditorP
       {
         id: generateId(),
         name: 'Video 1',
-        type: 'video',
-        clips: [],
-        muted: false,
-        locked: false,
-        height: EDITOR_CONSTANTS.DEFAULT_TRACK_HEIGHT,
-        collapsed: false,
-      },
-      {
-        id: generateId(),
-        name: 'Video 2',
-        type: 'video',
-        clips: [],
-        muted: false,
-        locked: false,
-        height: EDITOR_CONSTANTS.DEFAULT_TRACK_HEIGHT,
-        collapsed: false,
-      },
-      {
-        id: generateId(),
-        name: 'Video 3',
         type: 'video',
         clips: [],
         muted: false,

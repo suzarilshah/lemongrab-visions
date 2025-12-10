@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { toast } from 'sonner';
 import {
   ArrowLeft,
@@ -23,6 +23,10 @@ import {
   Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
+  PanelRightClose,
+  PanelRightOpen,
+  Keyboard,
+  HelpCircle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,11 +46,15 @@ import MediaLibrary from '@/components/editor/Library/MediaLibrary';
 import PreviewPlayer from '@/components/editor/Preview/PreviewPlayer';
 import ExportDialog from '@/components/editor/ExportDialog';
 import FillerGeneratorDialog from '@/components/editor/FillerGeneratorDialog';
+import ClipPropertiesPanel from '@/components/editor/Properties/ClipPropertiesPanel';
+import PlaybackSpeedControl from '@/components/editor/PlaybackSpeedControl';
+import OnboardingOverlay from '@/components/editor/OnboardingOverlay';
 import { Gap } from '@/lib/editor/fillerGenerator';
 
 // State management
 import { useEditorState, createDefaultProject } from '@/lib/editor/timelineState';
-import { MediaItem, Clip, EDITOR_CONSTANTS } from '@/types/editor';
+import { MediaItem, Clip, Track, EDITOR_CONSTANTS } from '@/types/editor';
+import { saveEditorProject, loadEditorProject } from '@/lib/editorProjectStorage';
 
 export default function VideoEditor() {
   const navigate = useNavigate();
@@ -56,9 +64,21 @@ export default function VideoEditor() {
   const [projectName, setProjectName] = useState('Untitled Project');
   const [isSaving, setIsSaving] = useState(false);
   const [draggedMedia, setDraggedMedia] = useState<MediaItem | null>(null);
+  const [showProperties, setShowProperties] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   // Editor state
   const { state, actions, computed } = useEditorState();
+
+  // Get selected clip and its track
+  const selectedClip = state.selectedClipIds.length === 1
+    ? state.project?.tracks.flatMap(t => t.clips).find(c => c.id === state.selectedClipIds[0]) || null
+    : null;
+
+  const selectedClipTrack = selectedClip
+    ? state.project?.tracks.find(t => t.clips.some(c => c.id === selectedClip.id)) || null
+    : null;
 
   // Check auth
   useEffect(() => {
@@ -77,13 +97,64 @@ export default function VideoEditor() {
     checkAuth();
   }, [navigate]);
 
-  // Initialize project
+  // Initialize or load project
   useEffect(() => {
-    if (!state.project) {
-      const project = createDefaultProject(projectName);
-      actions.setProject(project);
+    const initializeProject = async () => {
+      // If we have a projectId in the URL, try to load it
+      if (projectId) {
+        try {
+          const loadedProject = await loadEditorProject(projectId);
+          if (loadedProject) {
+            actions.setProject(loadedProject);
+            setProjectName(loadedProject.name);
+            return;
+          }
+        } catch (error) {
+          console.error('Failed to load project:', error);
+          toast.error('Failed to load project');
+        }
+      }
+
+      // Create a new project if none exists
+      if (!state.project) {
+        const project = createDefaultProject(projectName);
+        actions.setProject(project);
+      }
+    };
+
+    initializeProject();
+  }, [projectId]); // Only run on projectId change
+
+  // Auto-save every 30 seconds when project has changes
+  useEffect(() => {
+    if (!state.project || state.historyIndex <= 0) return;
+
+    const autoSaveTimer = setInterval(async () => {
+      if (!state.project) return;
+      try {
+        const projectToSave = { ...state.project, name: projectName };
+        await saveEditorProject(projectToSave);
+        // Silent save - don't show toast for auto-saves
+      } catch (error) {
+        console.error('Auto-save failed:', error);
+      }
+    }, 30000); // Auto-save every 30 seconds
+
+    return () => clearInterval(autoSaveTimer);
+  }, [state.project, state.historyIndex, projectName]);
+
+  // Show onboarding for first-time users
+  useEffect(() => {
+    const hasSeenOnboarding = localStorage.getItem('editor-onboarding-complete');
+    if (!hasSeenOnboarding) {
+      setShowOnboarding(true);
     }
-  }, [state.project, projectName, actions]);
+  }, []);
+
+  const handleOnboardingComplete = useCallback(() => {
+    localStorage.setItem('editor-onboarding-complete', 'true');
+    setShowOnboarding(false);
+  }, []);
 
   // Handle media drag start
   const handleMediaDragStart = useCallback((item: MediaItem) => {
@@ -164,15 +235,24 @@ export default function VideoEditor() {
     setIsSaving(true);
 
     try {
-      // TODO: Save to database
-      await new Promise(r => setTimeout(r, 500)); // Simulated delay
-      toast.success('Project saved');
+      // Update project name before saving
+      const projectToSave = {
+        ...state.project,
+        name: projectName,
+      };
+      await saveEditorProject(projectToSave);
+      toast.success('Project saved', {
+        description: 'Your changes have been saved to the cloud.',
+      });
     } catch (error) {
-      toast.error('Failed to save project');
+      console.error('Failed to save project:', error);
+      toast.error('Failed to save project', {
+        description: error instanceof Error ? error.message : 'Please try again.',
+      });
     } finally {
       setIsSaving(false);
     }
-  }, [state.project]);
+  }, [state.project, projectName]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -385,10 +465,49 @@ export default function VideoEditor() {
                 </Tooltip>
               }
             />
+
+            <div className="w-px h-4 bg-border mx-2" />
+
+            <PlaybackSpeedControl
+              speed={state.playbackRate}
+              onSpeedChange={actions.setPlaybackRate}
+            />
           </div>
 
           {/* Right section */}
           <div className="flex items-center gap-2">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setShowOnboarding(true)}
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Show Tutorial</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setShowProperties(!showProperties)}
+                >
+                  {showProperties ? (
+                    <PanelRightClose className="h-4 w-4" />
+                  ) : (
+                    <PanelRightOpen className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{showProperties ? 'Hide Properties' : 'Show Properties'}</TooltipContent>
+            </Tooltip>
+
             <Button
               variant="ghost"
               size="icon"
@@ -426,21 +545,22 @@ export default function VideoEditor() {
         />
 
         {/* Center area */}
-        <div className="flex-1 flex flex-col min-w-0 p-4 gap-4">
-          {/* Preview Player */}
-          <div className="h-[45%] min-h-[250px]">
+        <div className="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-hidden">
+          {/* Preview Player - uses flex-shrink to allow compression */}
+          <div className="flex-shrink-0 h-[40%] min-h-[200px] max-h-[400px]">
             <PreviewPlayer
               project={state.project}
               currentTime={state.currentTime}
               isPlaying={state.isPlaying}
+              playbackRate={state.playbackRate}
               onTimeChange={actions.setCurrentTime}
               onPlayPause={actions.togglePlayback}
               onSetPlaying={actions.setPlaying}
             />
           </div>
 
-          {/* Timeline */}
-          <div className="flex-1 min-h-[200px]">
+          {/* Timeline - takes remaining space with proper overflow */}
+          <div className="flex-1 min-h-[180px] overflow-hidden">
             <Timeline
               project={state.project}
               currentTime={state.currentTime}
@@ -493,6 +613,37 @@ export default function VideoEditor() {
             />
           </div>
         </div>
+
+        {/* Properties Panel */}
+        <AnimatePresence>
+          {showProperties && (
+            <ClipPropertiesPanel
+              clip={selectedClip}
+              track={selectedClipTrack}
+              onClose={() => setShowProperties(false)}
+              onUpdateClip={(clipId, updates) => {
+                actions.updateClip(clipId, updates);
+                actions.pushHistory();
+              }}
+              onDuplicateClip={(clipId) => {
+                actions.duplicateClip(clipId);
+                actions.pushHistory();
+                toast.success('Clip duplicated');
+              }}
+              onDeleteClip={(clipId) => {
+                actions.removeClip(clipId);
+                actions.pushHistory();
+                toast.success('Clip deleted');
+              }}
+              onSplitClip={(clipId, time) => {
+                actions.splitClip(clipId, time);
+                actions.pushHistory();
+                toast.success('Clip split at playhead');
+              }}
+              currentTime={state.currentTime}
+            />
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Drag overlay */}
@@ -505,6 +656,13 @@ export default function VideoEditor() {
           </div>
         </div>
       )}
+
+      {/* Onboarding overlay */}
+      <OnboardingOverlay
+        isVisible={showOnboarding}
+        onDismiss={handleOnboardingComplete}
+        onComplete={handleOnboardingComplete}
+      />
     </div>
   );
 }

@@ -131,10 +131,11 @@ export default function Timeline({
     return sum + (track.collapsed ? 30 : track.height);
   }, 0) || 0;
 
-  // Calculate timeline width
+  // Calculate timeline width - ensure enough space for all clips plus room to add more
+  // The timeline should always extend beyond the rightmost clip
   const timelineWidth = Math.max(
     containerWidth,
-    (project?.duration || 60) * zoom + EDITOR_CONSTANTS.TIMELINE_PADDING
+    (project?.duration || 60) * zoom + EDITOR_CONSTANTS.TIMELINE_PADDING * 2
   );
 
   if (!project) {

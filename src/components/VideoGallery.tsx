@@ -1,13 +1,126 @@
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { Trash2, Sparkles, Download, Copy, Play, ExternalLink, Film } from "lucide-react";
+import { Trash2, Sparkles, Download, Copy, Play, ExternalLink, Film, Loader2 } from "lucide-react";
 import { VideoMetadata } from "@/lib/videoStorage";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { getActiveProfile } from "@/lib/profiles";
 
 interface VideoGalleryProps {
   videos: VideoMetadata[];
   onDelete: (id: string) => void;
   directVideoUrl?: string | null;
+}
+
+// Video preview component that handles authenticated loading
+function AuthenticatedVideoPreview({ url, onPlay, onPause }: { url: string; onPlay?: () => void; onPause?: () => void }) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    let objectUrl: string | null = null;
+
+    const loadVideo = async () => {
+      // If URL is already a blob URL or data URL, use it directly
+      if (url.startsWith('blob:') || url.startsWith('data:')) {
+        setBlobUrl(url);
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(false);
+
+        const profile = await getActiveProfile();
+        const headers: HeadersInit = {};
+
+        // Add API key if available and URL looks like an Azure URL
+        if (profile?.apiKey && (url.includes('azure') || url.includes('openai'))) {
+          headers['api-key'] = profile.apiKey;
+        }
+
+        const response = await fetch(url, { headers });
+
+        if (!response.ok) {
+          throw new Error(`Failed to load video: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+
+        if (mounted) {
+          setBlobUrl(objectUrl);
+          setLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to load video preview:', err);
+        if (mounted) {
+          setError(true);
+          setLoading(false);
+          // Fallback: try loading directly (might work for non-Azure URLs)
+          setBlobUrl(url);
+        }
+      }
+    };
+
+    loadVideo();
+
+    return () => {
+      mounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [url]);
+
+  const handleMouseEnter = () => {
+    if (videoRef.current && blobUrl) {
+      videoRef.current.play().catch(() => {});
+      onPlay?.();
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+      onPause?.();
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-black/50">
+        <Loader2 className="h-8 w-8 text-primary animate-spin" />
+      </div>
+    );
+  }
+
+  return (
+    <video
+      ref={videoRef}
+      src={blobUrl || undefined}
+      className="w-full h-full object-cover"
+      preload="metadata"
+      muted
+      playsInline
+      loop
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onLoadedData={(e) => {
+        // Seek to first frame to show thumbnail
+        const video = e.currentTarget;
+        if (video.currentTime === 0) {
+          video.currentTime = 0.1;
+        }
+      }}
+      onError={() => setError(true)}
+    />
+  );
 }
 
 export default function VideoGallery({ videos, onDelete, directVideoUrl }: VideoGalleryProps) {
@@ -138,27 +251,7 @@ export default function VideoGallery({ videos, onDelete, directVideoUrl }: Video
             >
               {/* Video Preview */}
               <div className="relative aspect-video bg-black/50">
-                <video
-                  src={video.url}
-                  className="w-full h-full object-cover"
-                  preload="auto"
-                  crossOrigin="anonymous"
-                  muted
-                  playsInline
-                  loop
-                  onMouseEnter={(e) => e.currentTarget.play().catch(() => {})}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.pause();
-                    e.currentTarget.currentTime = 0;
-                  }}
-                  onLoadedData={(e) => {
-                    // Seek to first frame to show thumbnail
-                    const video = e.currentTarget;
-                    if (video.currentTime === 0) {
-                      video.currentTime = 0.1;
-                    }
-                  }}
-                />
+                <AuthenticatedVideoPreview url={video.url} />
                 
                 {/* Play Indicator */}
                 <div className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">

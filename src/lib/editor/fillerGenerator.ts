@@ -200,6 +200,8 @@ export async function generateFillerForGap(
   });
 
   try {
+    let downloadUrlCapture = '';
+
     const result = await generateVideo({
       prompt,
       duration: Math.round(targetDuration),
@@ -210,6 +212,10 @@ export async function generateFillerForGap(
       apiKey: profile.apiKey,
       deployment: profile.deployment,
       onProgress: (status) => {
+        // Capture the download URL when it's logged
+        if (status.startsWith('download_url:')) {
+          downloadUrlCapture = status.replace('download_url:', '');
+        }
         // Map video generation progress to our progress
         if (status.includes('%')) {
           const match = status.match(/(\d+)%/);
@@ -222,7 +228,7 @@ export async function generateFillerForGap(
               gap,
             });
           }
-        } else {
+        } else if (!status.startsWith('log:') && !status.startsWith('download_url:')) {
           onProgress?.({
             stage: 'generating_video',
             progress: 50,
@@ -235,20 +241,25 @@ export async function generateFillerForGap(
 
     // Save the generated video to storage
     const videoId = result.videoId || `filler-${Date.now()}`;
-    const videoUrl = URL.createObjectURL(result.blob);
 
-    // Also save to Neon storage for persistence
-    await saveVideoMetadata({
-      prompt,
-      url: result.downloadUrl || videoUrl,
-      duration: String(targetDuration),
-      height: String(opts.resolution?.height || 720),
-      width: String(opts.resolution?.width || 1280),
-      variants: '1',
-      soraVersion: profile.soraVersion,
-      audio: false,
-      jobId: videoId,
-    });
+    // Prefer download URL for persistence, fallback to blob URL for immediate preview
+    const persistentUrl = result.downloadUrl || downloadUrlCapture;
+    const blobUrl = URL.createObjectURL(result.blob);
+
+    // Save to Neon storage for persistence - use the Azure download URL
+    if (persistentUrl) {
+      await saveVideoMetadata({
+        prompt,
+        url: persistentUrl,
+        duration: String(targetDuration),
+        height: String(opts.resolution?.height || 720),
+        width: String(opts.resolution?.width || 1280),
+        variants: '1',
+        soraVersion: profile.soraVersion,
+        audio: false,
+        jobId: videoId,
+      });
+    }
 
     onProgress?.({
       stage: 'complete',
@@ -257,20 +268,23 @@ export async function generateFillerForGap(
       gap,
     });
 
+    // Return the blob URL for immediate playback in timeline
+    // The PreviewPlayer will handle authenticated playback via the sourceUrl
     return {
-      url: videoUrl,
+      url: blobUrl,
       id: videoId,
       duration: targetDuration,
     };
   } catch (error) {
     console.error('Failed to generate filler content:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to generate filler content';
     onProgress?.({
       stage: 'error',
       progress: 0,
-      message: error instanceof Error ? error.message : 'Failed to generate filler content',
+      message: errorMessage,
       gap,
     });
-    return null;
+    throw new Error(errorMessage); // Re-throw so the dialog can show the error
   }
 }
 

@@ -24,6 +24,7 @@ interface PreviewPlayerProps {
   project: EditorProject | null;
   currentTime: number;
   isPlaying: boolean;
+  playbackRate?: number;
   onTimeChange: (time: number) => void;
   onPlayPause: () => void;
   onSetPlaying: (playing: boolean) => void;
@@ -33,6 +34,7 @@ export default function PreviewPlayer({
   project,
   currentTime,
   isPlaying,
+  playbackRate = 1,
   onTimeChange,
   onPlayPause,
   onSetPlaying,
@@ -48,10 +50,14 @@ export default function PreviewPlayer({
   const [currentClip, setCurrentClip] = useState<Clip | null>(null);
 
   // Find the active clip at current time
+  // Prioritize clips from higher tracks (later in array = higher visual priority)
+  // This matches standard video editor behavior where top tracks overlay bottom tracks
   const findActiveClip = useCallback((): Clip | null => {
     if (!project) return null;
 
-    for (const track of project.tracks) {
+    // Search tracks in reverse order - higher tracks have visual priority
+    for (let i = project.tracks.length - 1; i >= 0; i--) {
+      const track = project.tracks[i];
       if (track.muted) continue;
       for (const clip of track.clips) {
         const clipStart = clip.startTime;
@@ -81,7 +87,7 @@ export default function PreviewPlayer({
         const deltaMs = timestamp - lastTimeRef.current;
         lastTimeRef.current = timestamp;
 
-        const deltaSeconds = deltaMs / 1000;
+        const deltaSeconds = (deltaMs / 1000) * playbackRate;
         const newTime = currentTime + deltaSeconds;
 
         if (project && newTime >= project.duration) {
@@ -101,7 +107,7 @@ export default function PreviewPlayer({
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isPlaying, currentTime, project, onTimeChange, onSetPlaying]);
+  }, [isPlaying, currentTime, project, playbackRate, onTimeChange, onSetPlaying]);
 
   // Sync video element with clip
   useEffect(() => {
@@ -130,7 +136,10 @@ export default function PreviewPlayer({
 
     // Volume
     video.volume = isMuted ? 0 : (currentClip.audioEnabled ? volume : 0);
-  }, [currentClip, currentTime, isPlaying, volume, isMuted]);
+
+    // Playback rate
+    video.playbackRate = playbackRate;
+  }, [currentClip, currentTime, isPlaying, volume, isMuted, playbackRate]);
 
   // Format time as MM:SS:FF
   const formatTime = (seconds: number): string => {
