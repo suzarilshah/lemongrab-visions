@@ -1,19 +1,241 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getCurrentUser, User } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Trash2, Download, Copy, Play, Pause, Film, Sparkles, Scissors } from "lucide-react";
+import { ArrowLeft, Trash2, Download, Copy, Play, Pause, Film, Sparkles, Scissors, Loader2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import logo from "@/assets/logo.svg";
 import { useNavigate } from "react-router-dom";
 import { listVideosFromStorage, deleteVideoMetadata, VideoMetadata } from "@/lib/videoStorage";
 import { toast } from "sonner";
+import { getActiveProfile } from "@/lib/profiles";
+import { cn } from "@/lib/utils";
+
+// Video card component with authenticated loading and hover effects
+function VideoCard({
+  video,
+  index,
+  onDelete,
+  onDownload
+}: {
+  video: VideoMetadata;
+  index: number;
+  onDelete: () => void;
+  onDownload: () => void;
+}) {
+  const [isHovering, setIsHovering] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Load video with authentication for Azure URLs
+  useEffect(() => {
+    let mounted = true;
+    let objectUrl: string | null = null;
+
+    const loadVideo = async () => {
+      // If URL is already a blob URL or data URL, use it directly
+      if (video.url.startsWith('blob:') || video.url.startsWith('data:')) {
+        setBlobUrl(video.url);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+
+        const profile = await getActiveProfile();
+        const headers: HeadersInit = {};
+
+        // Add API key if available and URL looks like an Azure URL
+        if (profile?.apiKey && (video.url.includes('azure') || video.url.includes('openai'))) {
+          headers['api-key'] = profile.apiKey;
+        }
+
+        const response = await fetch(video.url, { headers });
+
+        if (!response.ok) {
+          throw new Error(`Failed to load video: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+
+        if (mounted) {
+          setBlobUrl(objectUrl);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to load video preview:', err);
+        if (mounted) {
+          setIsLoading(false);
+          // Fallback: try loading directly
+          setBlobUrl(video.url);
+        }
+      }
+    };
+
+    loadVideo();
+
+    return () => {
+      mounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [video.url]);
+
+  const handleMouseEnter = () => {
+    setIsHovering(true);
+    if (videoRef.current && blobUrl) {
+      videoRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    setIsHovering(false);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+      setIsPlaying(false);
+    }
+  };
+
+  const togglePlay = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        videoRef.current.play().catch(() => {});
+        setIsPlaying(true);
+      }
+    }
+  };
+
+  return (
+    <div
+      className="card-premium rounded-xl overflow-hidden group animate-in"
+      style={{ animationDelay: `${index * 50}ms` }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Video Player */}
+      <div className="relative aspect-video bg-black/50">
+        {isLoading ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <Loader2 className="h-8 w-8 text-primary animate-spin" />
+          </div>
+        ) : (
+          blobUrl && (
+            <video
+              ref={videoRef}
+              src={blobUrl}
+              className="w-full h-full object-cover"
+              muted
+              playsInline
+              loop
+              preload="metadata"
+              onLoadedData={(e) => {
+                // Seek to first frame to show thumbnail
+                const vid = e.currentTarget;
+                if (vid.currentTime === 0 && !isPlaying) {
+                  vid.currentTime = 0.1;
+                }
+              }}
+            />
+          )
+        )}
+
+        {/* Play/Pause Overlay */}
+        <div
+          className={cn(
+            "absolute inset-0 flex items-center justify-center bg-black/30 transition-opacity cursor-pointer",
+            isHovering ? "opacity-100" : "opacity-0"
+          )}
+          onClick={togglePlay}
+        >
+          <div className="p-4 rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors">
+            {isPlaying ? (
+              <Pause className="h-8 w-8 text-white" />
+            ) : (
+              <Play className="h-8 w-8 text-white" />
+            )}
+          </div>
+        </div>
+
+        {/* Top badges */}
+        <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
+          <Badge
+            className={`${
+              video.soraVersion === "sora-2"
+                ? "bg-primary text-primary-foreground"
+                : "bg-white/10 backdrop-blur-sm text-white"
+            }`}
+          >
+            {video.soraVersion === "sora-2" ? "Sora 2" : "Sora 1"}
+          </Badge>
+          <span className="text-xs text-white/80 bg-black/50 backdrop-blur-sm px-2 py-1 rounded">
+            {video.duration}s
+          </span>
+        </div>
+      </div>
+
+      {/* Video Info */}
+      <div className="p-4 space-y-3">
+        <p className="text-sm line-clamp-2 leading-relaxed">
+          {video.prompt}
+        </p>
+
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>{new Date(video.timestamp).toLocaleDateString()}</span>
+          <span>{video.width}×{video.height}</span>
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-2 pt-2 border-t border-border/50">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              const vid = video.azureVideoId || video.id;
+              const fullId = vid?.startsWith("video_") ? vid : `video_${vid}`;
+              navigator.clipboard.writeText(fullId);
+              toast.success("Video ID copied");
+            }}
+            className="flex-1 h-9 text-xs hover:bg-primary/10"
+          >
+            <Copy className="h-3.5 w-3.5 mr-1.5" />
+            Copy ID
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onDownload}
+            className="flex-1 h-9 text-xs hover:bg-primary/10"
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5" />
+            Download
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function Gallery() {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
   const [videos, setVideos] = useState<VideoMetadata[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [playingId, setPlayingId] = useState<string | null>(null);
 
   useEffect(() => {
     checkAuth();
@@ -57,7 +279,15 @@ export default function Gallery() {
 
   const downloadVideo = async (url: string) => {
     try {
-      const res = await fetch(url);
+      // Use authenticated fetch for Azure URLs
+      const profile = await getActiveProfile();
+      const headers: HeadersInit = {};
+
+      if (profile?.apiKey && (url.includes('azure') || url.includes('openai'))) {
+        headers['api-key'] = profile.apiKey;
+      }
+
+      const res = await fetch(url, { headers });
       if (!res.ok) {
         throw new Error(`Download failed (${res.status})`);
       }
@@ -77,16 +307,12 @@ export default function Gallery() {
     }
   };
 
-  const togglePlay = (id: string) => {
-    setPlayingId(playingId === id ? null : id);
-  };
-
   return (
     <div className="min-h-screen bg-background relative">
       {/* Background */}
       <div className="fixed inset-0 bg-mesh opacity-50" />
       <div className="fixed inset-0 bg-grid opacity-30" />
-      
+
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -107,7 +333,7 @@ export default function Gallery() {
                 <h1 className="text-xl font-bold">Video Gallery</h1>
               </div>
             </div>
-            
+
             {user && (
               <div className="flex items-center gap-3">
                 <Button
@@ -156,110 +382,13 @@ export default function Gallery() {
         ) : (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {videos.map((video, index) => (
-              <div
+              <VideoCard
                 key={video.id}
-                className="card-premium rounded-xl overflow-hidden group animate-in"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                {/* Video Player */}
-                <div className="relative aspect-video bg-black/50">
-                  <video
-                    src={video.url}
-                    className="w-full h-full object-cover"
-                    preload="auto"
-                    crossOrigin="anonymous"
-                    muted
-                    playsInline
-                    loop
-                    autoPlay={playingId === video.id}
-                    onClick={() => togglePlay(video.id)}
-                    onLoadedData={(e) => {
-                      // Seek to first frame to show thumbnail
-                      const vid = e.currentTarget;
-                      if (vid.currentTime === 0 && !vid.autoplay) {
-                        vid.currentTime = 0.1;
-                      }
-                    }}
-                  />
-                  
-                  {/* Play/Pause Overlay */}
-                  <div 
-                    className="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    onClick={() => togglePlay(video.id)}
-                  >
-                    <div className="p-4 rounded-full bg-white/10 backdrop-blur-sm">
-                      {playingId === video.id ? (
-                        <Pause className="h-8 w-8 text-white" />
-                      ) : (
-                        <Play className="h-8 w-8 text-white" />
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Top badges */}
-                  <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-                    <Badge 
-                      className={`${
-                        video.soraVersion === "sora-2" 
-                          ? "bg-primary text-primary-foreground" 
-                          : "bg-white/10 backdrop-blur-sm text-white"
-                      }`}
-                    >
-                      {video.soraVersion === "sora-2" ? "Sora 2" : "Sora 1"}
-                    </Badge>
-                    <span className="text-xs text-white/80 bg-black/50 backdrop-blur-sm px-2 py-1 rounded">
-                      {video.duration}s
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Video Info */}
-                <div className="p-4 space-y-3">
-                  <p className="text-sm line-clamp-2 leading-relaxed">
-                    {video.prompt}
-                  </p>
-                  
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <span>{new Date(video.timestamp).toLocaleDateString()}</span>
-                    <span>{video.width}×{video.height}</span>
-                  </div>
-                  
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 pt-2 border-t border-border/50">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        const vid = video.azureVideoId || video.id;
-                        const fullId = vid?.startsWith("video_") ? vid : `video_${vid}`;
-                        navigator.clipboard.writeText(fullId);
-                        toast.success("Video ID copied");
-                      }}
-                      className="flex-1 h-9 text-xs hover:bg-primary/10"
-                    >
-                      <Copy className="h-3.5 w-3.5 mr-1.5" />
-                      Copy ID
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => downloadVideo(video.url)}
-                      className="flex-1 h-9 text-xs hover:bg-primary/10"
-                    >
-                      <Download className="h-3.5 w-3.5 mr-1.5" />
-                      Download
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(video.id)}
-                      className="h-9 w-9 hover:bg-destructive/10 hover:text-destructive"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                video={video}
+                index={index}
+                onDelete={() => handleDelete(video.id)}
+                onDownload={() => downloadVideo(video.url)}
+              />
             ))}
           </div>
         )}

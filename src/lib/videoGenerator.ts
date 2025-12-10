@@ -147,8 +147,6 @@ export async function generateVideo(params: VideoGenerationParams, controller?: 
         size: `${width}x${height}`,
         seconds: finalSeconds,
       };
-
-      console.log('[VideoGen] Sora 2 request body:', JSON.stringify(requestBody));
     } else {
       // Sora 1 format
       requestBody = {
