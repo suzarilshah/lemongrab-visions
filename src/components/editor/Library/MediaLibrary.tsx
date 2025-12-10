@@ -34,6 +34,7 @@ import { MediaItem as MediaItemType } from '@/types/editor';
 import { listVideosFromStorage, saveVideoMetadata } from '@/lib/videoStorage';
 import { generateVideo } from '@/lib/videoGenerator';
 import { getActiveProfile } from '@/lib/profiles';
+import { uploadVideoToAppwrite } from '@/lib/appwriteStorage';
 import MediaItem from './MediaItem';
 import { cn } from '@/lib/utils';
 
@@ -130,23 +131,48 @@ export default function MediaLibrary({
           } else if (status.includes('Processing')) {
             setGenerateProgress(70);
           } else if (status.includes('Downloading')) {
-            setGenerateProgress(90);
+            setGenerateProgress(85);
           }
         },
       });
 
-      // Save to storage
-      const videoUrl = URL.createObjectURL(result.blob);
+      // Upload to Appwrite for permanent storage
+      setGenerateProgress(90);
+      setGenerateStatus('Uploading to permanent storage...');
+
+      let permanentUrl = result.downloadUrl || '';
+      let appwriteFileId: string | undefined;
+
+      try {
+        const fileName = `${generatePrompt.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.mp4`;
+        const uploadResult = await uploadVideoToAppwrite(
+          result.blob,
+          fileName,
+          (progress) => {
+            setGenerateProgress(90 + (progress.percentage * 0.08));
+            setGenerateStatus(`Uploading to storage... ${progress.percentage}%`);
+          }
+        );
+        permanentUrl = uploadResult.url;
+        appwriteFileId = uploadResult.fileId;
+      } catch (uploadErr) {
+        console.warn('[MediaLibrary] Appwrite upload failed:', uploadErr);
+        toast.warning('Video saved with temporary URL');
+      }
+
+      setGenerateProgress(98);
+      setGenerateStatus('Saving to library...');
+
+      // Save metadata with Appwrite URL
       await saveVideoMetadata({
         prompt: generatePrompt,
-        url: result.downloadUrl || videoUrl,
+        url: permanentUrl,
         duration: generateDuration,
         height,
         width,
-        variants: '1',
         soraVersion: profile.soraVersion,
-        audio: false,
-        jobId: result.videoId || `gen-${Date.now()}`,
+        azureVideoId: result.videoId,
+        appwriteFileId,
       });
 
       setGenerateProgress(100);

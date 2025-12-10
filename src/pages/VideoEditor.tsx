@@ -27,6 +27,9 @@ import {
   PanelRightOpen,
   Keyboard,
   HelpCircle,
+  FolderOpen,
+  FilePlus,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +39,13 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useTheme } from '@/components/ThemeProvider';
 import { getCurrentUser, User } from '@/lib/auth';
 import logo from '@/assets/logo.svg';
@@ -49,6 +59,7 @@ import FillerGeneratorDialog from '@/components/editor/FillerGeneratorDialog';
 import ClipPropertiesPanel from '@/components/editor/Properties/ClipPropertiesPanel';
 import PlaybackSpeedControl from '@/components/editor/PlaybackSpeedControl';
 import OnboardingOverlay from '@/components/editor/OnboardingOverlay';
+import ProjectBrowser from '@/components/editor/ProjectBrowser';
 import { Gap } from '@/lib/editor/fillerGenerator';
 
 // State management
@@ -402,11 +413,49 @@ export default function VideoEditor() {
 
             <div className="flex items-center gap-2">
               <img src={logo} alt="Octo" className="h-7 w-7" />
-              <Input
-                value={projectName}
-                onChange={(e) => setProjectName(e.target.value)}
-                className="h-8 w-48 bg-transparent border-transparent hover:border-border focus:border-primary"
-              />
+
+              {/* Project dropdown menu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="h-8 gap-1 px-2">
+                    <Input
+                      value={projectName}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        setProjectName(e.target.value);
+                      }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-7 w-40 bg-transparent border-transparent hover:border-border focus:border-primary"
+                    />
+                    <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-48">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const project = createDefaultProject('Untitled Project');
+                      actions.setProject(project);
+                      setProjectName('Untitled Project');
+                      navigate('/video-editor');
+                      toast.success('New project created');
+                    }}
+                  >
+                    <FilePlus className="h-4 w-4 mr-2" />
+                    New Project
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <ProjectBrowser
+                    currentProjectId={projectId}
+                    onProjectSelect={(id) => navigate(`/video-editor/${id}`)}
+                    trigger={
+                      <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                        <FolderOpen className="h-4 w-4 mr-2" />
+                        Browse Projects...
+                      </DropdownMenuItem>
+                    }
+                  />
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
             <Badge variant="outline" className="border-primary/30 bg-primary/5">

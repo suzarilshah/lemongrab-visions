@@ -23,6 +23,7 @@ import Generations from "@/components/Generations";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { saveGenerationRecord, calculateCost, upsertGenerationRecord, updateGenerationStatus, fetchActiveGeneration } from "@/lib/costTracking";
 import { getActiveProfile } from "@/lib/profiles";
+import { uploadVideoToAppwrite } from "@/lib/appwriteStorage";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -254,20 +255,50 @@ export default function Dashboard() {
         },
       }, abortControllerRef.current);
 
-      setProgress(95);
-      setProgressMessage("Saving to library...");
+      setProgress(92);
+      setProgressMessage("Uploading to permanent storage...");
 
       const videoIdFinal = result.videoId?.startsWith("video_") ? result.videoId : result.videoId ? `video_${result.videoId}` : undefined;
 
+      // Upload to Appwrite for permanent storage (Azure URLs expire after 24h)
+      let permanentUrl = result.downloadUrl || '';
+      let appwriteFileId: string | undefined;
+
+      try {
+        const fileName = `${params.prompt.slice(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.mp4`;
+        const uploadResult = await uploadVideoToAppwrite(
+          result.blob,
+          fileName,
+          (progress) => {
+            const uploadProgress = 92 + (progress.percentage * 0.05); // 92-97%
+            setProgress(uploadProgress);
+            setProgressMessage(`Uploading to storage... ${progress.percentage}%`);
+          }
+        );
+        permanentUrl = uploadResult.url;
+        appwriteFileId = uploadResult.fileId;
+        console.log("[Dashboard] Video uploaded to Appwrite:", uploadResult.fileId);
+      } catch (uploadErr) {
+        console.warn("[Dashboard] Appwrite upload failed, using Azure URL:", uploadErr);
+        // Fallback to Azure URL if Appwrite fails
+        toast.warning("Video saved with temporary URL", {
+          description: "Video may expire after 24 hours. Please re-generate if needed.",
+        });
+      }
+
+      setProgress(97);
+      setProgressMessage("Saving to library...");
+
       try {
         await saveVideoMetadata({
-          url: result.downloadUrl || '',
+          url: permanentUrl,
           prompt: params.prompt,
           height: params.height,
           width: params.width,
           duration: String(params.duration),
           soraVersion: settings.soraVersion || soraVersion,
           azureVideoId: videoIdFinal,
+          appwriteFileId,
         });
 
         toast.success("Video saved to your library");

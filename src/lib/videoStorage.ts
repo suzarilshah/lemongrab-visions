@@ -17,13 +17,14 @@ export interface VideoMetadata {
   duration: string;
   soraVersion?: string;
   azureVideoId?: string;
+  appwriteFileId?: string;
 }
 
 // Database row type
 interface DbVideoMetadata {
   id: string;
   user_id: string;
-  appwrite_file_id: string;
+  appwrite_file_id: string | null;
   url: string;
   prompt: string;
   height: string;
@@ -49,6 +50,7 @@ function dbRowToMetadata(row: DbVideoMetadata): VideoMetadata {
     duration: row.duration,
     soraVersion: row.sora_version || 'sora-1',
     azureVideoId: row.azure_video_id || undefined,
+    appwriteFileId: row.appwrite_file_id || undefined,
   };
 }
 
@@ -58,25 +60,22 @@ function dbRowToMetadata(row: DbVideoMetadata): VideoMetadata {
 export async function saveVideoMetadata(metadata: Omit<VideoMetadata, 'id' | 'timestamp'>): Promise<VideoMetadata> {
   try {
     const userId = await requireUserId();
-    
-    // Generate a file ID if not provided
-    const fileId = metadata.azureVideoId || `video_${Date.now()}`;
-    
+
     // Generate a unique ID for new records
     const id = crypto.randomUUID();
-    
+
     const rows = await sql`
       INSERT INTO video_metadata (id, user_id, appwrite_file_id, url, prompt, height, width, duration, sora_version, azure_video_id)
       VALUES (
         ${id},
-        ${userId}, 
-        ${fileId}, 
-        ${metadata.url}, 
-        ${metadata.prompt}, 
-        ${metadata.height}, 
-        ${metadata.width}, 
-        ${metadata.duration}, 
-        ${metadata.soraVersion || 'sora-1'}, 
+        ${userId},
+        ${metadata.appwriteFileId || null},
+        ${metadata.url},
+        ${metadata.prompt},
+        ${metadata.height},
+        ${metadata.width},
+        ${metadata.duration},
+        ${metadata.soraVersion || 'sora-1'},
         ${metadata.azureVideoId || null}
       )
       RETURNING *
@@ -86,7 +85,7 @@ export async function saveVideoMetadata(metadata: Omit<VideoMetadata, 'id' | 'ti
       throw new Error('Failed to save video metadata');
     }
 
-    console.log("[VideoStorage] Video metadata saved to database");
+    console.log("[VideoStorage] Video metadata saved to database", { appwriteFileId: metadata.appwriteFileId });
     return dbRowToMetadata(rows[0] as DbVideoMetadata);
   } catch (error: unknown) {
     console.error("[VideoStorage] Error saving video metadata:", error);
