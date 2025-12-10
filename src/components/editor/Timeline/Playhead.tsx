@@ -4,6 +4,7 @@
  */
 
 import { useRef, useCallback } from 'react';
+import { EDITOR_CONSTANTS } from '@/types/editor';
 
 interface PlayheadProps {
   currentTime: number;
@@ -27,7 +28,8 @@ export default function Playhead({
   const isDraggingRef = useRef(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const position = currentTime * zoom - scrollLeft;
+  // Add TRACK_HEADER_WIDTH offset so playhead aligns with clips (which are in the content area after the header)
+  const position = EDITOR_CONSTANTS.TRACK_HEADER_WIDTH + currentTime * zoom - scrollLeft;
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -42,7 +44,8 @@ export default function Playhead({
       if (!container) return;
 
       const rect = container.getBoundingClientRect();
-      const x = moveEvent.clientX - rect.left + scrollLeft;
+      // Subtract TRACK_HEADER_WIDTH to get position relative to clip content area
+      const x = moveEvent.clientX - rect.left - EDITOR_CONSTANTS.TRACK_HEADER_WIDTH + scrollLeft;
       const time = Math.max(0, x / zoom);
       onTimeChange(time);
     };
@@ -58,8 +61,8 @@ export default function Playhead({
     window.addEventListener('mouseup', handleMouseUp);
   }, [scrollLeft, zoom, onTimeChange, onDragStart, onDragEnd]);
 
-  // Don't render if off-screen
-  if (position < -20 || position > window.innerWidth + 20) {
+  // Don't render if off-screen (account for header width)
+  if (position < EDITOR_CONSTANTS.TRACK_HEADER_WIDTH - 20 || position > window.innerWidth + 20) {
     return null;
   }
 

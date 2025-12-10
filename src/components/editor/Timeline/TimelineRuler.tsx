@@ -68,7 +68,8 @@ export default function TimelineRuler({
 
   const handleClick = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left + scrollLeft;
+    // Subtract track header width to get position relative to timeline content
+    const x = e.clientX - rect.left - EDITOR_CONSTANTS.TRACK_HEADER_WIDTH + scrollLeft;
     const time = x / zoom;
     onTimeClick(Math.max(0, time));
   };
@@ -78,10 +79,16 @@ export default function TimelineRuler({
       className="relative h-8 bg-card/80 border-b border-border/50 cursor-pointer select-none"
       onClick={handleClick}
     >
-      {/* Markers */}
+      {/* Empty space to align with track headers */}
+      <div className="absolute left-0 top-0 h-full bg-card/80 border-r border-border/50" style={{ width: EDITOR_CONSTANTS.TRACK_HEADER_WIDTH }} />
+
+      {/* Markers - offset by track header width */}
       <div
         className="absolute inset-0"
-        style={{ transform: `translateX(-${scrollLeft}px)` }}
+        style={{
+          left: EDITOR_CONSTANTS.TRACK_HEADER_WIDTH,
+          transform: `translateX(-${scrollLeft}px)`,
+        }}
       >
         {markers.map(({ time, isMajor }) => (
           <div

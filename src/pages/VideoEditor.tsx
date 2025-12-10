@@ -585,9 +585,9 @@ export default function VideoEditor() {
         />
 
         {/* Center area */}
-        <div className="flex-1 flex flex-col min-w-0 p-4 gap-3 overflow-hidden">
-          {/* Preview Player - uses flex-shrink to allow compression */}
-          <div className="flex-shrink-0 h-[38%] min-h-[180px] max-h-[360px]">
+        <div className="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-hidden">
+          {/* Preview Player - fixed height section at top */}
+          <div className="flex-shrink-0 h-[35%] min-h-[200px] max-h-[380px]">
             <PreviewPlayer
               project={state.project}
               currentTime={state.currentTime}
@@ -599,8 +599,11 @@ export default function VideoEditor() {
             />
           </div>
 
-          {/* Timeline - takes remaining space with proper overflow, positioned below preview */}
-          <div className="flex-1 min-h-[200px] overflow-hidden border-t border-border/30 pt-2">
+          {/* Visual separator between preview and timeline */}
+          <div className="flex-shrink-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+
+          {/* Timeline - takes remaining space at bottom */}
+          <div className="flex-1 min-h-[220px] overflow-hidden">
             <Timeline
               project={state.project}
               currentTime={state.currentTime}

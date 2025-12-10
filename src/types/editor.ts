@@ -252,4 +252,5 @@ export const EDITOR_CONSTANTS = {
   DEFAULT_FPS: 30,
   DEFAULT_RESOLUTION: { width: 1920, height: 1080 },
   TIMELINE_PADDING: 50, // Extra space at end of timeline
+  TRACK_HEADER_WIDTH: 176, // w-44 = 11rem = 176px
 };

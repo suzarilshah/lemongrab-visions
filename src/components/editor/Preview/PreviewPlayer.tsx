@@ -111,7 +111,7 @@ export default function PreviewPlayer({
     };
   }, [isPlaying, currentTime, project, playbackRate, onTimeChange, onSetPlaying]);
 
-  // Sync video element with clip
+  // Sync video element with clip - ONLY when needed, not during active playback
   useEffect(() => {
     if (!videoRef.current || !currentClip) return;
 
@@ -132,16 +132,11 @@ export default function PreviewPlayer({
     const timeInClip = currentTime - currentClip.startTime;
     const sourceTime = currentClip.inPoint + timeInClip;
 
-    // Only seek if:
-    // 1. Clip changed, OR
-    // 2. We just started playing (weren't playing before), OR
-    // 3. Not playing (user is scrubbing), OR
-    // 4. Video is significantly out of sync (>0.5s, for error correction only)
+    // CRITICAL: Only seek when NOT playing (user scrubbing) or when clip changes
+    // During playback, let the video play naturally - DO NOT seek based on timeline time
+    // This prevents the "2 seconds back" jitter bug
     const justStartedPlaying = isPlaying && !wasPlayingRef.current;
-    const needsSeek = clipChanged ||
-                      justStartedPlaying ||
-                      !isPlaying ||
-                      Math.abs(video.currentTime - sourceTime) > 0.5;
+    const needsSeek = clipChanged || justStartedPlaying || !isPlaying;
 
     if (needsSeek) {
       video.currentTime = sourceTime;

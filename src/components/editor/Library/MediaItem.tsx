@@ -3,12 +3,13 @@
  * Draggable video item in the media library
  */
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Play, Pause, Clock, Film } from 'lucide-react';
+import { Play, Pause, Clock, Film, Loader2 } from 'lucide-react';
 import { MediaItem as MediaItemType } from '@/types/editor';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { getActiveProfile } from '@/lib/profiles';
 
 interface MediaItemProps {
   item: MediaItemType;
@@ -19,11 +20,73 @@ interface MediaItemProps {
 export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemProps) {
   const [isHovering, setIsHovering] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Load video with authentication for Azure URLs
+  useEffect(() => {
+    let mounted = true;
+    let objectUrl: string | null = null;
+
+    const loadVideo = async () => {
+      // If URL is already a blob URL or data URL, use it directly
+      if (item.url.startsWith('blob:') || item.url.startsWith('data:')) {
+        setBlobUrl(item.url);
+        setIsLoading(false);
+        return;
+      }
+
+      try {
+        setIsLoading(true);
+        setLoadError(false);
+
+        const profile = await getActiveProfile();
+        const headers: HeadersInit = {};
+
+        // Add API key if available and URL looks like an Azure URL
+        if (profile?.apiKey && (item.url.includes('azure') || item.url.includes('openai'))) {
+          headers['api-key'] = profile.apiKey;
+        }
+
+        const response = await fetch(item.url, { headers });
+
+        if (!response.ok) {
+          throw new Error(`Failed to load video: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        objectUrl = URL.createObjectURL(blob);
+
+        if (mounted) {
+          setBlobUrl(objectUrl);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('Failed to load video preview:', err);
+        if (mounted) {
+          setLoadError(true);
+          setIsLoading(false);
+          // Fallback: try loading directly (might work for non-Azure URLs)
+          setBlobUrl(item.url);
+        }
+      }
+    };
+
+    loadVideo();
+
+    return () => {
+      mounted = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [item.url]);
 
   const handleMouseEnter = () => {
     setIsHovering(true);
-    if (videoRef.current) {
+    if (videoRef.current && blobUrl) {
       videoRef.current.play().catch(() => {});
       setIsPlaying(true);
     }
@@ -86,7 +149,11 @@ export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemPro
     >
       {/* Thumbnail / Video preview */}
       <div className="aspect-video relative bg-black/50">
-        {item.thumbnailUrl ? (
+        {isLoading ? (
+          <div className="w-full h-full flex items-center justify-center">
+            <Loader2 className="h-6 w-6 text-primary animate-spin" />
+          </div>
+        ) : item.thumbnailUrl ? (
           <img
             src={item.thumbnailUrl}
             alt={item.prompt}
@@ -95,25 +162,30 @@ export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemPro
               isPlaying && 'opacity-0'
             )}
           />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <Film className="h-8 w-8 text-muted-foreground/50" />
-          </div>
-        )}
+        ) : null}
 
-        {/* Video element (plays on hover) */}
-        <video
-          ref={videoRef}
-          src={item.url}
-          className={cn(
-            'absolute inset-0 w-full h-full object-cover',
-            !isPlaying && 'opacity-0'
-          )}
-          muted
-          loop
-          playsInline
-          preload="metadata"
-        />
+        {/* Video element - shows first frame as thumbnail when not playing */}
+        {blobUrl && (
+          <video
+            ref={videoRef}
+            src={blobUrl}
+            className={cn(
+              'absolute inset-0 w-full h-full object-cover',
+              isLoading && 'opacity-0'
+            )}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onLoadedData={(e) => {
+              // Seek to first frame to show thumbnail
+              const video = e.currentTarget;
+              if (video.currentTime === 0 && !isPlaying) {
+                video.currentTime = 0.1;
+              }
+            }}
+          />
+        )}
 
         {/* Play indicator */}
         <div
