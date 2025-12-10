@@ -5,14 +5,35 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Search, Film, RefreshCw, Filter, Grid, List, X } from 'lucide-react';
+import { Search, Film, RefreshCw, Grid, List, X, Plus, Sparkles, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
 import { MediaItem as MediaItemType } from '@/types/editor';
-import { listVideosFromStorage, VideoMetadata } from '@/lib/videoStorage';
+import { listVideosFromStorage, saveVideoMetadata } from '@/lib/videoStorage';
+import { generateVideo } from '@/lib/videoGenerator';
+import { getActiveProfile } from '@/lib/profiles';
 import MediaItem from './MediaItem';
 import { cn } from '@/lib/utils';
 
@@ -34,6 +55,15 @@ export default function MediaLibrary({
   const [searchQuery, setSearchQuery] = useState('');
   const [filterVersion, setFilterVersion] = useState<'all' | 'sora-1' | 'sora-2'>('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+
+  // Generation state
+  const [showGenerateDialog, setShowGenerateDialog] = useState(false);
+  const [generatePrompt, setGeneratePrompt] = useState('');
+  const [generateDuration, setGenerateDuration] = useState('5');
+  const [generateResolution, setGenerateResolution] = useState('1280x720');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateProgress, setGenerateProgress] = useState(0);
+  const [generateStatus, setGenerateStatus] = useState('');
 
   // Load videos
   const loadVideos = useCallback(async () => {
@@ -62,6 +92,90 @@ export default function MediaLibrary({
   useEffect(() => {
     loadVideos();
   }, [loadVideos]);
+
+  // Generate new video
+  const handleGenerateVideo = useCallback(async () => {
+    if (!generatePrompt.trim()) {
+      toast.error('Please enter a prompt');
+      return;
+    }
+
+    const profile = await getActiveProfile();
+    if (!profile) {
+      toast.error('Please configure your Azure settings first');
+      return;
+    }
+
+    setIsGenerating(true);
+    setGenerateProgress(10);
+    setGenerateStatus('Starting video generation...');
+
+    const [width, height] = generateResolution.split('x');
+
+    try {
+      const result = await generateVideo({
+        prompt: generatePrompt,
+        duration: parseInt(generateDuration),
+        width,
+        height,
+        variants: '1',
+        endpoint: profile.endpoint,
+        apiKey: profile.apiKey,
+        deployment: profile.deployment,
+        onProgress: (status) => {
+          setGenerateStatus(status);
+          // Parse progress from status if available
+          if (status.includes('Generating')) {
+            setGenerateProgress(50);
+          } else if (status.includes('Processing')) {
+            setGenerateProgress(70);
+          } else if (status.includes('Downloading')) {
+            setGenerateProgress(90);
+          }
+        },
+      });
+
+      // Save to storage
+      const videoUrl = URL.createObjectURL(result.blob);
+      await saveVideoMetadata({
+        prompt: generatePrompt,
+        url: result.downloadUrl || videoUrl,
+        duration: generateDuration,
+        height,
+        width,
+        variants: '1',
+        soraVersion: profile.soraVersion,
+        audio: false,
+        jobId: result.videoId || `gen-${Date.now()}`,
+      });
+
+      setGenerateProgress(100);
+      setGenerateStatus('Video generated successfully!');
+
+      toast.success('Video generated!', {
+        description: 'Drag it to the timeline to use it.',
+      });
+
+      // Reload videos
+      await loadVideos();
+
+      // Reset form after a delay
+      setTimeout(() => {
+        setShowGenerateDialog(false);
+        setGeneratePrompt('');
+        setGenerateProgress(0);
+        setGenerateStatus('');
+      }, 1500);
+    } catch (error) {
+      console.error('Failed to generate video:', error);
+      toast.error('Failed to generate video', {
+        description: error instanceof Error ? error.message : 'Unknown error',
+      });
+      setGenerateStatus('Generation failed');
+    } finally {
+      setIsGenerating(false);
+    }
+  }, [generatePrompt, generateDuration, generateResolution, loadVideos]);
 
   // Filter videos
   const filteredVideos = videos.filter((video) => {
@@ -137,6 +251,15 @@ export default function MediaLibrary({
             className="pl-9 h-9 bg-background/50"
           />
         </div>
+
+        {/* Generate Button */}
+        <Button
+          className="w-full btn-premium gap-2"
+          onClick={() => setShowGenerateDialog(true)}
+        >
+          <Sparkles className="h-4 w-4" />
+          Generate New Video
+        </Button>
 
         {/* Filters */}
         <div className="flex items-center justify-between">
@@ -229,6 +352,123 @@ export default function MediaLibrary({
           {filteredVideos.length} of {videos.length} videos
         </p>
       </div>
+
+      {/* Generate Dialog */}
+      <Dialog open={showGenerateDialog} onOpenChange={setShowGenerateDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Generate Video with AI
+            </DialogTitle>
+            <DialogDescription>
+              Create a new video using Sora AI. It will be added to your library.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Prompt */}
+            <div className="space-y-2">
+              <Label htmlFor="prompt">Prompt</Label>
+              <Textarea
+                id="prompt"
+                placeholder="Describe the video you want to generate..."
+                value={generatePrompt}
+                onChange={(e) => setGeneratePrompt(e.target.value)}
+                className="min-h-[100px] resize-none"
+                disabled={isGenerating}
+              />
+            </div>
+
+            {/* Settings Row */}
+            <div className="grid grid-cols-2 gap-4">
+              {/* Duration */}
+              <div className="space-y-2">
+                <Label>Duration</Label>
+                <Select
+                  value={generateDuration}
+                  onValueChange={setGenerateDuration}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="5">5 seconds</SelectItem>
+                    <SelectItem value="10">10 seconds</SelectItem>
+                    <SelectItem value="15">15 seconds</SelectItem>
+                    <SelectItem value="20">20 seconds</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Resolution */}
+              <div className="space-y-2">
+                <Label>Resolution</Label>
+                <Select
+                  value={generateResolution}
+                  onValueChange={setGenerateResolution}
+                  disabled={isGenerating}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1920x1080">1080p HD</SelectItem>
+                    <SelectItem value="1280x720">720p</SelectItem>
+                    <SelectItem value="854x480">480p</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Progress */}
+            {isGenerating && (
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                    {generateStatus || 'Generating...'}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {Math.round(generateProgress)}%
+                  </span>
+                </div>
+                <Progress value={generateProgress} className="h-2" />
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setShowGenerateDialog(false)}
+              disabled={isGenerating}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleGenerateVideo}
+              disabled={isGenerating || !generatePrompt.trim()}
+              className="flex-1 btn-premium"
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  Generate
+                </>
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

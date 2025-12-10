@@ -1,10 +1,9 @@
 /**
  * Clip Component
- * Represents a video clip on the timeline
+ * Represents a video clip on the timeline - optimized for smooth dragging
  */
 
-import { useRef, useState, useCallback } from 'react';
-import { motion } from 'framer-motion';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { Volume2, VolumeX, GripVertical } from 'lucide-react';
 import { Clip as ClipType, EDITOR_CONSTANTS } from '@/types/editor';
 import { cn } from '@/lib/utils';
@@ -41,9 +40,23 @@ export default function ClipComponent({
   const clipRef = useRef<HTMLDivElement>(null);
   const [isTrimming, setIsTrimming] = useState<'left' | 'right' | null>(null);
   const [isHovering, setIsHovering] = useState(false);
+  const [localPosition, setLocalPosition] = useState<number | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startTime: number;
+    isDragging: boolean;
+  } | null>(null);
 
+  // Use local position during drag for smooth updates, otherwise use clip.startTime
+  const displayLeft = localPosition !== null ? localPosition * zoom : clip.startTime * zoom;
   const width = clip.duration * zoom;
-  const left = clip.startTime * zoom;
+
+  // Reset local position when clip changes externally
+  useEffect(() => {
+    if (!dragRef.current?.isDragging) {
+      setLocalPosition(null);
+    }
+  }, [clip.startTime]);
 
   // Handle clip selection
   const handleClick = useCallback((e: React.MouseEvent) => {
@@ -57,24 +70,42 @@ export default function ClipComponent({
     onDoubleClick?.(clip.id);
   }, [clip.id, onDoubleClick]);
 
-  // Handle drag start
+  // Handle drag start - optimized for smooth dragging
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if (isTrimming) return;
+    if (e.button !== 0) return; // Only left click
     e.preventDefault();
+    e.stopPropagation();
 
     const startX = e.clientX;
     const startTime = clip.startTime;
 
+    dragRef.current = { startX, startTime, isDragging: true };
     onStartDrag(clip.id, startX, startTime);
+    setLocalPosition(startTime);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
-      const deltaX = moveEvent.clientX - startX;
+      if (!dragRef.current) return;
+
+      const deltaX = moveEvent.clientX - dragRef.current.startX;
       const deltaTime = deltaX / zoom;
-      const newStartTime = Math.max(0, startTime + deltaTime);
-      onMove(clip.id, newStartTime);
+      const newStartTime = Math.max(0, dragRef.current.startTime + deltaTime);
+
+      // Update local position for immediate visual feedback
+      setLocalPosition(newStartTime);
+
+      // Throttle the actual state update for performance
+      requestAnimationFrame(() => {
+        onMove(clip.id, newStartTime);
+      });
     };
 
     const handleMouseUp = () => {
+      if (dragRef.current) {
+        dragRef.current.isDragging = false;
+        dragRef.current = null;
+      }
+      setLocalPosition(null);
       onEndDrag();
       window.removeEventListener('mousemove', handleMouseMove);
       window.removeEventListener('mouseup', handleMouseUp);
@@ -156,49 +187,55 @@ export default function ClipComponent({
   };
 
   return (
-    <motion.div
+    <div
       ref={clipRef}
       className={cn(
-        'absolute top-1 rounded-md cursor-move overflow-hidden group',
+        'absolute top-1 rounded-md cursor-grab active:cursor-grabbing overflow-hidden group',
         'bg-gradient-to-b from-primary/80 to-primary/60',
-        'border-2 transition-all',
-        isSelected ? 'border-white shadow-lg shadow-primary/30' : 'border-primary/30',
-        isDragging && 'opacity-75 scale-[1.02]'
+        'border-2',
+        isSelected ? 'border-white shadow-lg shadow-primary/30 z-10' : 'border-primary/30',
+        isDragging && 'opacity-80 z-20',
+        isTrimming && 'z-20'
       )}
       style={{
-        left,
+        left: displayLeft,
         width: Math.max(width, 30),
         height: trackHeight - 8,
+        transform: isDragging ? 'scale(1.02)' : 'scale(1)',
+        transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+        willChange: isDragging ? 'left, transform' : 'auto',
       }}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onMouseDown={handleMouseDown}
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={() => setIsHovering(false)}
-      initial={false}
-      animate={{
-        opacity: isDragging ? 0.75 : 1,
-      }}
     >
       {/* Left trim handle */}
       <div
         className={cn(
-          'absolute left-0 top-0 w-2 h-full cursor-ew-resize z-10',
+          'absolute left-0 top-0 w-3 h-full cursor-ew-resize z-10',
           'bg-yellow-400/0 hover:bg-yellow-400/80 transition-colors',
+          'flex items-center justify-center',
           isTrimming === 'left' && 'bg-yellow-400'
         )}
         onMouseDown={handleLeftTrim}
-      />
+      >
+        <div className="w-0.5 h-6 bg-yellow-400/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
 
       {/* Right trim handle */}
       <div
         className={cn(
-          'absolute right-0 top-0 w-2 h-full cursor-ew-resize z-10',
+          'absolute right-0 top-0 w-3 h-full cursor-ew-resize z-10',
           'bg-yellow-400/0 hover:bg-yellow-400/80 transition-colors',
+          'flex items-center justify-center',
           isTrimming === 'right' && 'bg-yellow-400'
         )}
         onMouseDown={handleRightTrim}
-      />
+      >
+        <div className="w-0.5 h-6 bg-yellow-400/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
 
       {/* Thumbnail/Preview */}
       {clip.thumbnailUrl && (
@@ -209,7 +246,7 @@ export default function ClipComponent({
       )}
 
       {/* Content */}
-      <div className="relative h-full flex items-center px-3 pointer-events-none">
+      <div className="relative h-full flex items-center px-3 pointer-events-none select-none">
         {/* Drag handle */}
         {isHovering && (
           <GripVertical className="h-4 w-4 text-white/50 mr-1 flex-shrink-0" />
@@ -260,10 +297,10 @@ export default function ClipComponent({
         </svg>
       </div>
 
-      {/* Selection glow */}
+      {/* Selection indicator */}
       {isSelected && (
-        <div className="absolute inset-0 border-2 border-white rounded-md animate-pulse pointer-events-none" />
+        <div className="absolute inset-0 border-2 border-white/50 rounded-md pointer-events-none" />
       )}
-    </motion.div>
+    </div>
   );
 }
