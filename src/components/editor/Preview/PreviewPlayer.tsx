@@ -126,11 +126,18 @@ export default function PreviewPlayer({
     // Load new source if clip changed
     if (video.src !== currentClip.sourceUrl) {
       video.src = currentClip.sourceUrl;
+      // Prevent video from looping - we control playback via timeline
+      video.loop = false;
     }
 
     // Calculate time within the clip
     const timeInClip = currentTime - currentClip.startTime;
     const sourceTime = currentClip.inPoint + timeInClip;
+
+    // Calculate clip boundaries
+    const clipStartTime = currentClip.startTime;
+    const clipEndTime = currentClip.startTime + currentClip.duration;
+    const sourceEndTime = currentClip.inPoint + currentClip.duration;
 
     // CRITICAL: Only seek when NOT playing (user scrubbing) or when clip changes
     // During playback, let the video play naturally - DO NOT seek based on timeline time
@@ -139,13 +146,19 @@ export default function PreviewPlayer({
     const needsSeek = clipChanged || justStartedPlaying || !isPlaying;
 
     if (needsSeek) {
-      video.currentTime = sourceTime;
+      video.currentTime = Math.min(sourceTime, sourceEndTime);
     }
 
     wasPlayingRef.current = isPlaying;
 
-    // Handle play/pause
-    if (isPlaying && video.paused) {
+    // Check if video reached the end of its clip portion
+    // This prevents repeating by stopping playback when clip ends
+    if (isPlaying && video.currentTime >= sourceEndTime - 0.1) {
+      // Video reached the end of this clip's portion, let timeline advance to next clip
+      // Don't restart the video - the timeline will handle moving to next clip
+      video.pause();
+    } else if (isPlaying && video.paused && currentTime < clipEndTime - 0.1) {
+      // Only play if we're within the clip bounds and should be playing
       video.play().catch(() => {});
     } else if (!isPlaying && !video.paused) {
       video.pause();
@@ -157,6 +170,20 @@ export default function PreviewPlayer({
     // Playback rate
     video.playbackRate = playbackRate;
   }, [currentClip, currentTime, isPlaying, volume, isMuted, playbackRate]);
+
+  // Handle video ended event - prevent unintended replay
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const handleEnded = () => {
+      // Video ended naturally - let timeline continue, don't replay
+      // The findActiveClip will return null or next clip
+    };
+
+    video.addEventListener('ended', handleEnded);
+    return () => video.removeEventListener('ended', handleEnded);
+  }, []);
 
   // Format time as MM:SS:FF
   const formatTime = (seconds: number): string => {

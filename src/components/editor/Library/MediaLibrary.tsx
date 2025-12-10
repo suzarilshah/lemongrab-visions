@@ -59,7 +59,7 @@ export default function MediaLibrary({
   // Generation state
   const [showGenerateDialog, setShowGenerateDialog] = useState(false);
   const [generatePrompt, setGeneratePrompt] = useState('');
-  const [generateDuration, setGenerateDuration] = useState('5');
+  const [generateDuration, setGenerateDuration] = useState('4');
   const [generateResolution, setGenerateResolution] = useState('1280x720');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateProgress, setGenerateProgress] = useState(0);
@@ -394,10 +394,9 @@ export default function MediaLibrary({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="5">5 seconds</SelectItem>
-                    <SelectItem value="10">10 seconds</SelectItem>
-                    <SelectItem value="15">15 seconds</SelectItem>
-                    <SelectItem value="20">20 seconds</SelectItem>
+                    <SelectItem value="4">4 seconds</SelectItem>
+                    <SelectItem value="8">8 seconds</SelectItem>
+                    <SelectItem value="12">12 seconds</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

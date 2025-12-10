@@ -69,7 +69,7 @@ export default function Playhead({
   return (
     <div
       ref={containerRef}
-      className="absolute top-0 z-20 pointer-events-auto cursor-col-resize"
+      className="absolute top-0 z-30 cursor-col-resize group"
       style={{
         left: position,
         height: height,
@@ -77,16 +77,22 @@ export default function Playhead({
       }}
       onMouseDown={handleMouseDown}
     >
-      {/* Handle */}
-      <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-4 h-4 bg-red-500 rounded-sm shadow-lg hover:bg-red-400 transition-colors">
-        <div className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0 border-l-[6px] border-r-[6px] border-t-[6px] border-l-transparent border-r-transparent border-t-red-500" />
+      {/* Wider hit area for easier dragging - invisible but captures events */}
+      <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-8 h-8 pointer-events-auto" />
+
+      {/* Handle - larger and more visible */}
+      <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-5 h-5 bg-red-500 rounded-sm shadow-lg hover:bg-red-400 group-hover:scale-110 transition-all pointer-events-auto cursor-grab active:cursor-grabbing">
+        <div className="absolute left-1/2 top-full -translate-x-1/2 w-0 h-0 border-l-[7px] border-r-[7px] border-t-[7px] border-l-transparent border-r-transparent border-t-red-500" />
       </div>
 
-      {/* Line */}
+      {/* Line - also draggable with wider hit area */}
       <div
-        className="absolute left-1/2 -translate-x-1/2 w-0.5 bg-red-500"
+        className="absolute left-1/2 -translate-x-1/2 w-3 bg-transparent pointer-events-auto"
         style={{ top: 16, height: height - 16 }}
-      />
+      >
+        {/* Visible line */}
+        <div className="absolute left-1/2 -translate-x-1/2 w-0.5 h-full bg-red-500" />
+      </div>
     </div>
   );
 }

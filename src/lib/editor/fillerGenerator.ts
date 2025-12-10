@@ -185,12 +185,19 @@ export async function generateFillerForGap(
   // Generate prompt based on surrounding clips
   const prompt = generateFillerPrompt(gap, opts.transitionStyle);
 
-  // Calculate target duration (don't exceed gap duration or Sora limits)
-  const targetDuration = Math.min(
-    opts.targetDuration || gap.duration,
-    gap.duration,
-    20 // Sora max duration
-  );
+  // Calculate target duration (don't exceed gap duration)
+  // IMPORTANT: Sora only supports 4, 8, or 12 seconds - constrain to these values
+  const VALID_SORA_DURATIONS = [4, 8, 12];
+  const desiredDuration = Math.min(opts.targetDuration || gap.duration, gap.duration);
+
+  // Find the closest valid Sora duration that fits within the gap
+  const targetDuration = VALID_SORA_DURATIONS.reduce((prev, curr) => {
+    // Only consider durations that fit within the gap
+    if (curr > gap.duration && prev <= gap.duration) return prev;
+    if (prev > gap.duration && curr <= gap.duration) return curr;
+    // Choose the one closest to desired duration
+    return Math.abs(curr - desiredDuration) < Math.abs(prev - desiredDuration) ? curr : prev;
+  });
 
   onProgress?.({
     stage: 'generating_video',
@@ -320,9 +327,22 @@ export function suggestFillers(
   const opts = { ...DEFAULT_OPTIONS, ...options };
   const gaps = findGaps(project, opts.minGapDuration);
 
-  return gaps.map(gap => ({
-    gap,
-    suggestedPrompt: generateFillerPrompt(gap, opts.transitionStyle),
-    suggestedDuration: Math.min(opts.targetDuration || gap.duration, gap.duration, 20),
-  }));
+  // Valid Sora durations
+  const VALID_SORA_DURATIONS = [4, 8, 12];
+
+  return gaps.map(gap => {
+    const desiredDuration = Math.min(opts.targetDuration || gap.duration, gap.duration);
+    // Find the closest valid Sora duration that fits within the gap
+    const suggestedDuration = VALID_SORA_DURATIONS.reduce((prev, curr) => {
+      if (curr > gap.duration && prev <= gap.duration) return prev;
+      if (prev > gap.duration && curr <= gap.duration) return curr;
+      return Math.abs(curr - desiredDuration) < Math.abs(prev - desiredDuration) ? curr : prev;
+    });
+
+    return {
+      gap,
+      suggestedPrompt: generateFillerPrompt(gap, opts.transitionStyle),
+      suggestedDuration,
+    };
+  });
 }

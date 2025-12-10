@@ -14,6 +14,52 @@ import {
   ExportProgress,
 } from '@/types/editor';
 import { getFFmpegTransitionFilter } from './transitions';
+import { getActiveProfile } from '@/lib/profiles';
+
+// ============================================
+// Authenticated Video Fetching
+// ============================================
+
+/**
+ * Fetch a video file with authentication for Azure URLs
+ */
+async function fetchVideoWithAuth(url: string): Promise<Uint8Array> {
+  // Check if this is an Azure blob storage URL
+  const isAzureUrl = url.includes('blob.core.windows.net') || url.includes('azure');
+
+  if (isAzureUrl) {
+    // Get the active profile for the API key
+    const profile = await getActiveProfile();
+    if (profile?.apiKey) {
+      const response = await fetch(url, {
+        headers: {
+          'api-key': profile.apiKey,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      return new Uint8Array(arrayBuffer);
+    }
+  }
+
+  // For non-Azure URLs or if no profile, use standard fetch
+  // Handle blob URLs specially
+  if (url.startsWith('blob:')) {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch blob video: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return new Uint8Array(arrayBuffer);
+  }
+
+  // Use fetchFile for regular URLs
+  return await fetchFile(url);
+}
 
 // ============================================
 // FFmpeg Instance Management
@@ -127,13 +173,14 @@ export async function exportProject(
     );
 
     try {
-      // Fetch the video file
-      const videoData = await fetchFile(clip.sourceUrl);
+      // Fetch the video file with authentication if needed
+      const videoData = await fetchVideoWithAuth(clip.sourceUrl);
       await ff.writeFile(filename, videoData);
       clipFiles.push(filename);
     } catch (error) {
       console.error(`Failed to download clip ${i}:`, error);
-      throw new Error(`Failed to download clip: ${clip.prompt?.slice(0, 30)}...`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      throw new Error(`Failed to download clip: ${clip.prompt?.slice(0, 30)}... (${errorMessage})`);
     }
   }
 
