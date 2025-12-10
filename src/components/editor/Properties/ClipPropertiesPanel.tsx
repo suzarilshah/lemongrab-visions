@@ -3,7 +3,7 @@
  * Premium right-side panel for editing selected clip properties
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import {
   X,
   Volume2,
@@ -18,6 +18,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -34,6 +35,7 @@ import {
 } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { Clip, Track } from '@/types/editor';
+import { getActiveProfile } from '@/lib/profiles';
 
 interface ClipPropertiesPanelProps {
   clip: Clip | null;
@@ -62,10 +64,78 @@ export default function ClipPropertiesPanel({
     effects: false,
     info: false,
   });
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isLoadingVideo, setIsLoadingVideo] = useState(false);
+  const loadedSourceRef = useRef<string | null>(null);
 
   const toggleSection = (section: keyof typeof openSections) => {
     setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
   };
+
+  // Load video with authentication for Azure URLs
+  useEffect(() => {
+    if (!clip) {
+      setBlobUrl(null);
+      loadedSourceRef.current = null;
+      return;
+    }
+
+    // Skip if already loaded this source
+    if (loadedSourceRef.current === clip.sourceUrl) {
+      return;
+    }
+
+    const loadVideo = async () => {
+      const sourceUrl = clip.sourceUrl;
+
+      // If already a blob URL, use directly
+      if (sourceUrl.startsWith('blob:') || sourceUrl.startsWith('data:')) {
+        setBlobUrl(sourceUrl);
+        loadedSourceRef.current = sourceUrl;
+        return;
+      }
+
+      setIsLoadingVideo(true);
+
+      try {
+        const profile = await getActiveProfile();
+        const headers: HeadersInit = {};
+
+        // Add API key for Azure URLs
+        if (profile?.apiKey && (sourceUrl.includes('azure') || sourceUrl.includes('openai'))) {
+          headers['api-key'] = profile.apiKey;
+        }
+
+        const response = await fetch(sourceUrl, { headers });
+
+        if (!response.ok) {
+          throw new Error(`Failed to load video: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+
+        setBlobUrl(url);
+        loadedSourceRef.current = sourceUrl;
+      } catch (err) {
+        console.error('Failed to load video for properties:', err);
+        // Fallback to direct URL
+        setBlobUrl(sourceUrl);
+        loadedSourceRef.current = sourceUrl;
+      } finally {
+        setIsLoadingVideo(false);
+      }
+    };
+
+    loadVideo();
+
+    return () => {
+      // Cleanup blob URL when clip changes
+      if (blobUrl && blobUrl.startsWith('blob:') && loadedSourceRef.current !== clip?.sourceUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [clip?.sourceUrl, clip?.id]);
 
   // Format time display
   const formatTime = (seconds: number): string => {
@@ -116,18 +186,26 @@ export default function ClipPropertiesPanel({
         <div className="p-4 space-y-4">
           {/* Clip Preview */}
           <div className="relative aspect-video rounded-lg overflow-hidden bg-black">
-            {clip.thumbnailUrl ? (
+            {isLoadingVideo ? (
+              <div className="w-full h-full flex items-center justify-center">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : clip.thumbnailUrl ? (
               <img
                 src={clip.thumbnailUrl}
                 alt="Clip thumbnail"
                 className="w-full h-full object-cover"
               />
-            ) : (
+            ) : blobUrl ? (
               <video
-                src={clip.sourceUrl}
+                src={blobUrl}
                 className="w-full h-full object-cover"
                 muted
               />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <Film className="h-8 w-8 text-muted-foreground/50" />
+              </div>
             )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
             <div className="absolute bottom-2 left-2 right-2">

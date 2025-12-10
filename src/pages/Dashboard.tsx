@@ -399,6 +399,15 @@ export default function Dashboard() {
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={() => navigate("/movie-studio")}
+                className="hover:bg-primary/10"
+                title="Movie Studio"
+              >
+                <Film className="h-5 w-5" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => navigate("/video-editor")}
                 className="hover:bg-primary/10"
                 title="Video Editor"

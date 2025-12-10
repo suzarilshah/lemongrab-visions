@@ -14,11 +14,13 @@ import {
   VolumeX,
   Maximize2,
   Minimize2,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
 import { EditorProject, Clip, Track } from '@/types/editor';
+import { getActiveProfile } from '@/lib/profiles';
 
 interface PreviewPlayerProps {
   project: EditorProject | null;
@@ -50,6 +52,9 @@ export default function PreviewPlayer({
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [currentClip, setCurrentClip] = useState<Clip | null>(null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [isLoadingVideo, setIsLoadingVideo] = useState(false);
+  const loadedSourceRef = useRef<string | null>(null);
 
   // Find the active clip at current time
   // Prioritize clips from higher tracks (later in array = higher visual priority)
@@ -79,6 +84,76 @@ export default function PreviewPlayer({
       setCurrentClip(clip);
     }
   }, [findActiveClip, currentClip]);
+
+  // Load video with authentication for Azure URLs
+  useEffect(() => {
+    if (!currentClip) {
+      setBlobUrl(null);
+      loadedSourceRef.current = null;
+      return;
+    }
+
+    // Skip if already loaded this source
+    if (loadedSourceRef.current === currentClip.sourceUrl) {
+      return;
+    }
+
+    const loadVideo = async () => {
+      const sourceUrl = currentClip.sourceUrl;
+
+      // If already a blob URL, use directly
+      if (sourceUrl.startsWith('blob:') || sourceUrl.startsWith('data:')) {
+        setBlobUrl(sourceUrl);
+        loadedSourceRef.current = sourceUrl;
+        return;
+      }
+
+      setIsLoadingVideo(true);
+
+      try {
+        const profile = await getActiveProfile();
+        const headers: HeadersInit = {};
+
+        // Add API key for Azure URLs
+        if (profile?.apiKey && (sourceUrl.includes('azure') || sourceUrl.includes('openai'))) {
+          headers['api-key'] = profile.apiKey;
+        }
+
+        const response = await fetch(sourceUrl, { headers });
+
+        if (!response.ok) {
+          throw new Error(`Failed to load video: ${response.status}`);
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+
+        // Only update if we're still on the same clip
+        if (currentClip.sourceUrl === sourceUrl) {
+          setBlobUrl(url);
+          loadedSourceRef.current = sourceUrl;
+        } else {
+          URL.revokeObjectURL(url);
+        }
+      } catch (err) {
+        console.error('Failed to load video for preview:', err);
+        // Fallback to direct URL (might work for non-Azure URLs)
+        setBlobUrl(sourceUrl);
+        loadedSourceRef.current = sourceUrl;
+      } finally {
+        setIsLoadingVideo(false);
+      }
+    };
+
+    loadVideo();
+
+    return () => {
+      // Cleanup blob URL when clip changes
+      if (blobUrl && blobUrl.startsWith('blob:') && loadedSourceRef.current !== currentClip.sourceUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [currentClip?.sourceUrl, currentClip?.id]);
 
   // Playback animation loop
   useEffect(() => {
@@ -113,7 +188,7 @@ export default function PreviewPlayer({
 
   // Sync video element with clip - ONLY when needed, not during active playback
   useEffect(() => {
-    if (!videoRef.current || !currentClip) return;
+    if (!videoRef.current || !currentClip || !blobUrl) return;
 
     const video = videoRef.current;
 
@@ -123,9 +198,9 @@ export default function PreviewPlayer({
       lastClipIdRef.current = currentClip.id;
     }
 
-    // Load new source if clip changed
-    if (video.src !== currentClip.sourceUrl) {
-      video.src = currentClip.sourceUrl;
+    // Load new source if clip changed - use blobUrl for authenticated playback
+    if (video.src !== blobUrl) {
+      video.src = blobUrl;
       // Prevent video from looping - we control playback via timeline
       video.loop = false;
     }
@@ -169,7 +244,7 @@ export default function PreviewPlayer({
 
     // Playback rate
     video.playbackRate = playbackRate;
-  }, [currentClip, currentTime, isPlaying, volume, isMuted, playbackRate]);
+  }, [currentClip, currentTime, isPlaying, volume, isMuted, playbackRate, blobUrl]);
 
   // Handle video ended event - prevent unintended replay
   useEffect(() => {
@@ -259,12 +334,26 @@ export default function PreviewPlayer({
       {/* Video area */}
       <div className="relative flex-1 bg-black flex items-center justify-center min-h-[200px]">
         {currentClip ? (
-          <video
-            ref={videoRef}
-            className="max-w-full max-h-full"
-            playsInline
-            muted={isMuted || !currentClip.audioEnabled}
-          />
+          <>
+            {isLoadingVideo ? (
+              <div className="text-center space-y-4">
+                <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto" />
+                <p className="text-muted-foreground">Loading video...</p>
+              </div>
+            ) : blobUrl ? (
+              <video
+                ref={videoRef}
+                className="max-w-full max-h-full"
+                playsInline
+                muted={isMuted || !currentClip.audioEnabled}
+              />
+            ) : (
+              <div className="text-center space-y-4">
+                <Loader2 className="h-12 w-12 text-primary animate-spin mx-auto" />
+                <p className="text-muted-foreground">Preparing video...</p>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center space-y-4">
             <div className="w-16 h-16 rounded-full bg-muted/20 flex items-center justify-center mx-auto">
