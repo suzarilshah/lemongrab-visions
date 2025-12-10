@@ -43,6 +43,8 @@ export default function PreviewPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  const wasPlayingRef = useRef(false);
+  const lastClipIdRef = useRef<string | null>(null);
 
   const [volume, setVolume] = useState(1);
   const [isMuted, setIsMuted] = useState(false);
@@ -114,6 +116,14 @@ export default function PreviewPlayer({
     if (!videoRef.current || !currentClip) return;
 
     const video = videoRef.current;
+
+    // Check if clip changed
+    const clipChanged = lastClipIdRef.current !== currentClip.id;
+    if (clipChanged) {
+      lastClipIdRef.current = currentClip.id;
+    }
+
+    // Load new source if clip changed
     if (video.src !== currentClip.sourceUrl) {
       video.src = currentClip.sourceUrl;
     }
@@ -122,10 +132,22 @@ export default function PreviewPlayer({
     const timeInClip = currentTime - currentClip.startTime;
     const sourceTime = currentClip.inPoint + timeInClip;
 
-    // Only seek if significantly different
-    if (Math.abs(video.currentTime - sourceTime) > 0.1) {
+    // Only seek if:
+    // 1. Clip changed, OR
+    // 2. We just started playing (weren't playing before), OR
+    // 3. Not playing (user is scrubbing), OR
+    // 4. Video is significantly out of sync (>0.5s, for error correction only)
+    const justStartedPlaying = isPlaying && !wasPlayingRef.current;
+    const needsSeek = clipChanged ||
+                      justStartedPlaying ||
+                      !isPlaying ||
+                      Math.abs(video.currentTime - sourceTime) > 0.5;
+
+    if (needsSeek) {
       video.currentTime = sourceTime;
     }
+
+    wasPlayingRef.current = isPlaying;
 
     // Handle play/pause
     if (isPlaying && video.paused) {

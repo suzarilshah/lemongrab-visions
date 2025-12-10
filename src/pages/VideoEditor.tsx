@@ -300,8 +300,26 @@ export default function VideoEditor() {
       // Split at playhead
       if (e.key === 'c' && !e.metaKey && !e.ctrlKey) {
         if (state.selectedClipIds.length === 1) {
-          actions.splitClip(state.selectedClipIds[0], state.currentTime);
-          actions.pushHistory();
+          const clipId = state.selectedClipIds[0];
+          const clip = state.project?.tracks.flatMap(t => t.clips).find(c => c.id === clipId);
+
+          if (clip) {
+            const clipStart = clip.startTime;
+            const clipEnd = clip.startTime + clip.duration;
+
+            // Check if playhead is within clip bounds
+            if (state.currentTime > clipStart && state.currentTime < clipEnd) {
+              actions.splitClip(clipId, state.currentTime);
+              actions.pushHistory();
+              toast.success('Clip split', {
+                description: `Split at ${Math.floor(state.currentTime / 60)}:${String(Math.floor(state.currentTime % 60)).padStart(2, '0')}`,
+              });
+            } else {
+              toast.error('Cannot split here', {
+                description: 'Move the playhead to a position within the selected clip',
+              });
+            }
+          }
         }
         return;
       }
@@ -397,8 +415,30 @@ export default function VideoEditor() {
                   disabled={state.selectedClipIds.length === 0}
                   onClick={() => {
                     if (state.selectedClipIds.length === 1) {
-                      actions.splitClip(state.selectedClipIds[0], state.currentTime);
+                      const clipId = state.selectedClipIds[0];
+                      const clip = state.project?.tracks.flatMap(t => t.clips).find(c => c.id === clipId);
+
+                      if (!clip) {
+                        toast.error('No clip selected');
+                        return;
+                      }
+
+                      const clipStart = clip.startTime;
+                      const clipEnd = clip.startTime + clip.duration;
+
+                      // Check if playhead is within clip bounds
+                      if (state.currentTime <= clipStart || state.currentTime >= clipEnd) {
+                        toast.error('Cannot split here', {
+                          description: 'Move the playhead to a position within the selected clip',
+                        });
+                        return;
+                      }
+
+                      actions.splitClip(clipId, state.currentTime);
                       actions.pushHistory();
+                      toast.success('Clip split', {
+                        description: `Split at ${Math.floor(state.currentTime / 60)}:${String(Math.floor(state.currentTime % 60)).padStart(2, '0')}`,
+                      });
                     }
                   }}
                 >
@@ -545,9 +585,9 @@ export default function VideoEditor() {
         />
 
         {/* Center area */}
-        <div className="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-hidden">
+        <div className="flex-1 flex flex-col min-w-0 p-4 gap-3 overflow-hidden">
           {/* Preview Player - uses flex-shrink to allow compression */}
-          <div className="flex-shrink-0 h-[40%] min-h-[200px] max-h-[400px]">
+          <div className="flex-shrink-0 h-[38%] min-h-[180px] max-h-[360px]">
             <PreviewPlayer
               project={state.project}
               currentTime={state.currentTime}
@@ -559,8 +599,8 @@ export default function VideoEditor() {
             />
           </div>
 
-          {/* Timeline - takes remaining space with proper overflow */}
-          <div className="flex-1 min-h-[180px] overflow-hidden">
+          {/* Timeline - takes remaining space with proper overflow, positioned below preview */}
+          <div className="flex-1 min-h-[200px] overflow-hidden border-t border-border/30 pt-2">
             <Timeline
               project={state.project}
               currentTime={state.currentTime}

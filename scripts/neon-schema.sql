@@ -221,6 +221,35 @@ CREATE TRIGGER update_movie_projects_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
+-- ============================================
+-- 10. EDITOR_PROJECTS TABLE (Video Timeline Editor)
+-- ============================================
+CREATE TABLE IF NOT EXISTS editor_projects (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL DEFAULT 'Untitled Project',
+    project_data JSONB NOT NULL DEFAULT '{}',
+    thumbnail_url TEXT,
+    duration DECIMAL(10, 2) DEFAULT 0,
+    fps INTEGER DEFAULT 30,
+    resolution_width INTEGER DEFAULT 1920,
+    resolution_height INTEGER DEFAULT 1080,
+    status VARCHAR(50) DEFAULT 'draft',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_editor_projects_user_id ON editor_projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_editor_projects_status ON editor_projects(status);
+CREATE INDEX IF NOT EXISTS idx_editor_projects_updated_at ON editor_projects(updated_at DESC);
+
+-- Add trigger for editor_projects
+DROP TRIGGER IF EXISTS update_editor_projects_updated_at ON editor_projects;
+CREATE TRIGGER update_editor_projects_updated_at
+    BEFORE UPDATE ON editor_projects
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
 -- Success message
 SELECT 'Schema created successfully!' as status;
 
