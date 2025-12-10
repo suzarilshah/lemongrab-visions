@@ -129,12 +129,12 @@ export async function generateVideo(params: VideoGenerationParams, controller?: 
       };
     } else if (isSora2) {
       // Sora 2 regular generation
-      // Note: seconds must be an integer (4, 8, or 12), not a string
+      // Note: seconds must be a string ("4", "8", or "12"), not an integer
       requestBody = {
         model: deployment,
         prompt,
         size: `${width}x${height}`,
-        seconds: typeof duration === 'number' ? duration : parseInt(String(duration), 10),
+        seconds: String(duration),
       };
     } else {
       // Sora 1 format
