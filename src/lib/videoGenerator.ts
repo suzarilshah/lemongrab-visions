@@ -94,7 +94,11 @@ export async function generateVideo(params: VideoGenerationParams, controller?: 
     formData.append('model', deployment);
     formData.append('prompt', prompt);
     formData.append('size', `${width}x${height}`);
-    formData.append('seconds', duration.toString());
+    // Validate and append seconds as string ("4", "8", or "12")
+    const secondsStr = String(duration);
+    const validSeconds = ['4', '8', '12'];
+    formData.append('seconds', validSeconds.includes(secondsStr) ? secondsStr : '4');
+    formData.append('n', '1');
     
     if (inputReference) {
       // Resize the image to match the requested dimensions
@@ -129,13 +133,25 @@ export async function generateVideo(params: VideoGenerationParams, controller?: 
       };
     } else if (isSora2) {
       // Sora 2 regular generation
-      // Note: seconds must be a string ("4", "8", or "12"), not an integer
+      // Note: For Azure Sora 2:
+      // - 'model' should match deployment name
+      // - 'seconds' must be a string ("4", "8", or "12")
+      // - 'size' must be one of: '720x1280', '1280x720', '1024x1792', '1792x1024'
+      // - 'n' is number of videos to generate
+      const secondsStr = String(duration);
+      // Validate seconds is one of the allowed values
+      const validSeconds = ['4', '8', '12'];
+      const finalSeconds = validSeconds.includes(secondsStr) ? secondsStr : '4';
+
       requestBody = {
         model: deployment,
         prompt,
         size: `${width}x${height}`,
-        seconds: String(duration),
+        seconds: finalSeconds,
+        n: 1,
       };
+
+      console.log('[VideoGen] Sora 2 request body:', JSON.stringify(requestBody));
     } else {
       // Sora 1 format
       requestBody = {
