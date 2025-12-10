@@ -227,10 +227,10 @@ export default function PreviewPlayer({
   return (
     <div
       ref={containerRef}
-      className="flex flex-col bg-card/50 rounded-xl border border-border/50 overflow-hidden"
+      className="h-full flex flex-col bg-card/50 rounded-xl border border-border/50 overflow-hidden"
     >
       {/* Video area */}
-      <div className="relative flex-1 bg-black flex items-center justify-center min-h-[300px]">
+      <div className="relative flex-1 bg-black flex items-center justify-center min-h-[200px]">
         {currentClip ? (
           <video
             ref={videoRef}
@@ -263,8 +263,8 @@ export default function PreviewPlayer({
         )}
       </div>
 
-      {/* Controls */}
-      <div className="p-4 border-t border-border/50 space-y-3">
+      {/* Controls - flex-shrink-0 ensures controls are always visible */}
+      <div className="flex-shrink-0 p-4 border-t border-border/50 space-y-3 bg-card/80">
         {/* Progress bar */}
         <div className="flex items-center gap-3">
           <span className="text-xs font-mono text-muted-foreground w-20">
@@ -289,8 +289,12 @@ export default function PreviewPlayer({
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleSkipBack}
-              className="h-9 w-9"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSkipBack();
+              }}
+              className="h-9 w-9 hover:bg-muted"
             >
               <SkipBack className="h-4 w-4" />
             </Button>
@@ -298,8 +302,12 @@ export default function PreviewPlayer({
             <Button
               variant="default"
               size="icon"
-              onClick={onPlayPause}
-              className="h-10 w-10"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onPlayPause();
+              }}
+              className="h-10 w-10 hover:scale-105 active:scale-95 transition-transform"
             >
               {isPlaying ? (
                 <Pause className="h-5 w-5" />
@@ -311,8 +319,12 @@ export default function PreviewPlayer({
             <Button
               variant="ghost"
               size="icon"
-              onClick={handleSkipForward}
-              className="h-9 w-9"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleSkipForward();
+              }}
+              className="h-9 w-9 hover:bg-muted"
             >
               <SkipForward className="h-4 w-4" />
             </Button>

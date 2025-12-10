@@ -20,6 +20,7 @@ interface MediaItemProps {
 export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemProps) {
   const [isHovering, setIsHovering] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -86,7 +87,8 @@ export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemPro
 
   const handleMouseEnter = () => {
     setIsHovering(true);
-    if (videoRef.current && blobUrl) {
+    // Don't auto-play if currently dragging
+    if (videoRef.current && blobUrl && !isDragging) {
       videoRef.current.play().catch(() => {});
       setIsPlaying(true);
     }
@@ -101,7 +103,20 @@ export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemPro
     }
   };
 
+  // Stop video when dragging starts
+  const stopVideoPlayback = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+      setIsPlaying(false);
+    }
+  }, []);
+
   const handleDragStart = useCallback((e: React.DragEvent) => {
+    // Stop video playback immediately when drag starts
+    setIsDragging(true);
+    stopVideoPlayback();
+
     // Set drag data
     e.dataTransfer.setData('application/json', JSON.stringify(item));
     e.dataTransfer.effectAllowed = 'copy';
@@ -119,9 +134,10 @@ export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemPro
     }, 0);
 
     onDragStart(item);
-  }, [item, onDragStart]);
+  }, [item, onDragStart, stopVideoPlayback]);
 
   const handleDragEnd = useCallback(() => {
+    setIsDragging(false);
     onDragEnd();
   }, [onDragEnd]);
 

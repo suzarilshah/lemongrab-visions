@@ -166,16 +166,59 @@ export default function VideoEditor() {
     setDraggedMedia(null);
   }, []);
 
-  // Handle drop on timeline
+  // Handle drop on timeline with auto-stitch (magnet) feature
   const handleDropClip = useCallback((trackId: string, time: number) => {
-    if (!draggedMedia) return;
+    if (!draggedMedia || !state.project) return;
+
+    // Find the track to get existing clips
+    const track = state.project.tracks.find(t => t.id === trackId);
+    let finalStartTime = Math.max(0, time);
+
+    // Auto-stitch: If snap is enabled, snap to the end of existing clips
+    if (state.snapEnabled && track && track.clips.length > 0) {
+      const snapThreshold = EDITOR_CONSTANTS.SNAP_THRESHOLD / state.zoom; // Convert pixels to seconds
+
+      // Find all clip edges (start and end times)
+      const clipEdges: number[] = [];
+      for (const clip of track.clips) {
+        clipEdges.push(clip.startTime); // Start of clip
+        clipEdges.push(clip.startTime + clip.duration); // End of clip
+      }
+
+      // Find the nearest edge to snap to
+      let nearestEdge = finalStartTime;
+      let minDistance = Infinity;
+
+      for (const edge of clipEdges) {
+        const distance = Math.abs(edge - finalStartTime);
+        if (distance < minDistance && distance <= snapThreshold) {
+          minDistance = distance;
+          nearestEdge = edge;
+        }
+      }
+
+      // If no nearby edge, snap to the end of the last clip (auto-stitch)
+      if (minDistance > snapThreshold && track.clips.length > 0) {
+        const lastClip = track.clips.reduce((latest, clip) =>
+          (clip.startTime + clip.duration) > (latest.startTime + latest.duration) ? clip : latest
+        );
+        const lastClipEnd = lastClip.startTime + lastClip.duration;
+
+        // If dropping near or after the last clip, snap to its end
+        if (finalStartTime >= lastClipEnd - snapThreshold) {
+          nearestEdge = lastClipEnd;
+        }
+      }
+
+      finalStartTime = nearestEdge;
+    }
 
     const newClip: Omit<Clip, 'id' | 'trackId' | 'selected'> = {
       videoId: draggedMedia.id,
       sourceUrl: draggedMedia.url,
       thumbnailUrl: draggedMedia.thumbnailUrl,
       prompt: draggedMedia.prompt,
-      startTime: Math.max(0, time),
+      startTime: finalStartTime,
       duration: draggedMedia.duration,
       inPoint: 0,
       outPoint: draggedMedia.duration,
@@ -192,7 +235,7 @@ export default function VideoEditor() {
     toast.success('Clip added to timeline', {
       description: draggedMedia.prompt.slice(0, 40) + '...',
     });
-  }, [draggedMedia, actions]);
+  }, [draggedMedia, actions, state.project, state.snapEnabled, state.zoom]);
 
   // Handle clip double click (show properties)
   const handleClipDoubleClick = useCallback((clipId: string) => {
@@ -574,36 +617,67 @@ export default function VideoEditor() {
         </div>
       </header>
 
-      {/* Main content */}
-      <div className="relative z-10 flex-1 flex overflow-hidden">
-        {/* Media Library */}
-        <MediaLibrary
-          onDragStart={handleMediaDragStart}
-          onDragEnd={handleMediaDragEnd}
-          isCollapsed={!state.showLibrary}
-          onToggleCollapse={actions.toggleLibrary}
-        />
+      {/* Main content - split into upper area (library + preview) and lower timeline */}
+      <div className="relative z-10 flex-1 flex flex-col overflow-hidden">
+        {/* Upper area: Media Library + Preview */}
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          {/* Media Library */}
+          <MediaLibrary
+            onDragStart={handleMediaDragStart}
+            onDragEnd={handleMediaDragEnd}
+            isCollapsed={!state.showLibrary}
+            onToggleCollapse={actions.toggleLibrary}
+          />
 
-        {/* Center area */}
-        <div className="flex-1 flex flex-col min-w-0 p-4 gap-4 overflow-hidden">
-          {/* Preview Player - fixed height section at top */}
-          <div className="flex-shrink-0 h-[35%] min-h-[200px] max-h-[380px]">
-            <PreviewPlayer
-              project={state.project}
-              currentTime={state.currentTime}
-              isPlaying={state.isPlaying}
-              playbackRate={state.playbackRate}
-              onTimeChange={actions.setCurrentTime}
-              onPlayPause={actions.togglePlayback}
-              onSetPlaying={actions.setPlaying}
-            />
+          {/* Preview Player area */}
+          <div className="flex-1 flex flex-col min-w-0 p-4 overflow-hidden">
+            <div className="flex-1 min-h-0">
+              <PreviewPlayer
+                project={state.project}
+                currentTime={state.currentTime}
+                isPlaying={state.isPlaying}
+                playbackRate={state.playbackRate}
+                onTimeChange={actions.setCurrentTime}
+                onPlayPause={actions.togglePlayback}
+                onSetPlaying={actions.setPlaying}
+              />
+            </div>
           </div>
 
-          {/* Visual separator between preview and timeline */}
-          <div className="flex-shrink-0 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+          {/* Properties Panel */}
+          <AnimatePresence>
+            {showProperties && (
+              <ClipPropertiesPanel
+                clip={selectedClip}
+                track={selectedClipTrack}
+                onClose={() => setShowProperties(false)}
+                onUpdateClip={(clipId, updates) => {
+                  actions.updateClip(clipId, updates);
+                  actions.pushHistory();
+                }}
+                onDuplicateClip={(clipId) => {
+                  actions.duplicateClip(clipId);
+                  actions.pushHistory();
+                  toast.success('Clip duplicated');
+                }}
+                onDeleteClip={(clipId) => {
+                  actions.removeClip(clipId);
+                  actions.pushHistory();
+                  toast.success('Clip deleted');
+                }}
+                onSplitClip={(clipId, time) => {
+                  actions.splitClip(clipId, time);
+                  actions.pushHistory();
+                  toast.success('Clip split at playhead');
+                }}
+                currentTime={state.currentTime}
+              />
+            )}
+          </AnimatePresence>
+        </div>
 
-          {/* Timeline - takes remaining space at bottom */}
-          <div className="flex-1 min-h-[220px] overflow-hidden">
+        {/* Timeline - FIXED at bottom, separate from preview area */}
+        <div className="flex-shrink-0 h-[280px] border-t-2 border-border bg-card/80">
             <Timeline
               project={state.project}
               currentTime={state.currentTime}
@@ -654,39 +728,7 @@ export default function VideoEditor() {
               onToggleSnap={actions.toggleSnap}
               onClipDoubleClick={handleClipDoubleClick}
             />
-          </div>
         </div>
-
-        {/* Properties Panel */}
-        <AnimatePresence>
-          {showProperties && (
-            <ClipPropertiesPanel
-              clip={selectedClip}
-              track={selectedClipTrack}
-              onClose={() => setShowProperties(false)}
-              onUpdateClip={(clipId, updates) => {
-                actions.updateClip(clipId, updates);
-                actions.pushHistory();
-              }}
-              onDuplicateClip={(clipId) => {
-                actions.duplicateClip(clipId);
-                actions.pushHistory();
-                toast.success('Clip duplicated');
-              }}
-              onDeleteClip={(clipId) => {
-                actions.removeClip(clipId);
-                actions.pushHistory();
-                toast.success('Clip deleted');
-              }}
-              onSplitClip={(clipId, time) => {
-                actions.splitClip(clipId, time);
-                actions.pushHistory();
-                toast.success('Clip split at playhead');
-              }}
-              currentTime={state.currentTime}
-            />
-          )}
-        </AnimatePresence>
       </div>
 
       {/* Drag overlay */}
