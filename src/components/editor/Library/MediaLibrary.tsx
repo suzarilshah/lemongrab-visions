@@ -413,9 +413,10 @@ export default function MediaLibrary({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="1920x1080">1080p HD</SelectItem>
-                    <SelectItem value="1280x720">720p</SelectItem>
-                    <SelectItem value="854x480">480p</SelectItem>
+                    <SelectItem value="1792x1024">Landscape Wide (1792×1024)</SelectItem>
+                    <SelectItem value="1280x720">Landscape HD (1280×720)</SelectItem>
+                    <SelectItem value="1024x1792">Portrait Tall (1024×1792)</SelectItem>
+                    <SelectItem value="720x1280">Portrait HD (720×1280)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
