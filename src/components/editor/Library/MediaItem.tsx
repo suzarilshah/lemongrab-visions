@@ -4,7 +4,6 @@
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { motion } from 'framer-motion';
 import { Play, Pause, Clock, Film, Loader2 } from 'lucide-react';
 import { MediaItem as MediaItemType } from '@/types/editor';
 import { Badge } from '@/components/ui/badge';
@@ -149,19 +148,17 @@ export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemPro
   };
 
   return (
-    <motion.div
+    <div
       className={cn(
         'relative rounded-lg overflow-hidden cursor-grab active:cursor-grabbing',
         'bg-card border border-border/50 hover:border-primary/50 transition-colors',
-        'group'
+        'group hover:scale-[1.02] active:scale-[0.98] transition-transform'
       )}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      whileHover={{ scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
     >
       {/* Thumbnail / Video preview */}
       <div className="aspect-video relative bg-black/50">
@@ -263,6 +260,6 @@ export default function MediaItem({ item, onDragStart, onDragEnd }: MediaItemPro
           <span>{new Date(item.createdAt).toLocaleDateString()}</span>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

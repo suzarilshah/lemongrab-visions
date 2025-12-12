@@ -261,10 +261,8 @@ export async function generateFillerForGap(
         duration: String(targetDuration),
         height: String(opts.resolution?.height || 720),
         width: String(opts.resolution?.width || 1280),
-        variants: '1',
         soraVersion: profile.soraVersion,
-        audio: false,
-        jobId: videoId,
+        azureVideoId: videoId,
       });
     }
 
