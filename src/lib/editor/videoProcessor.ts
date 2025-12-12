@@ -236,7 +236,11 @@ export async function exportProject(
 
   // Read the output file
   const outputData = await ff.readFile(outputFile);
-  const blob = new Blob([outputData], { type: 'video/mp4' });
+  // Convert FileData (Uint8Array) to a new ArrayBuffer for Blob compatibility
+  const uint8Array = outputData as Uint8Array;
+  const newBuffer = new ArrayBuffer(uint8Array.byteLength);
+  new Uint8Array(newBuffer).set(uint8Array);
+  const blob = new Blob([newBuffer], { type: 'video/mp4' });
   const url = URL.createObjectURL(blob);
 
   // Calculate duration
